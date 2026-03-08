@@ -100,6 +100,13 @@ class QuizResponse(BaseModel):
     questions: list[QuizQuestion]
 
 
+# ─── Root health check (for Render/deployment probes) ───
+
+@app.get("/")
+def root_health():
+    return {"message": "Defense GPT API is running!", "version": "1.0.0"}
+
+
 # ─── Endpoints ───
 
 @router.get("/")

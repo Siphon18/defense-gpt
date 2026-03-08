@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, Shield, BookOpen, Target, Brain, Radar, Crosshair, Users } from 'lucide-react'
+import { ArrowRight, Shield, BookOpen, Target, Brain, Radar, Crosshair, Users, Database, MessageSquare, Award, Lock } from 'lucide-react'
 
 export default function LandingPage() {
   return (
@@ -35,7 +35,7 @@ export default function LandingPage() {
                 href="/signup"
                 className="btn-tactical inline-flex items-center justify-center px-4 py-2 border border-[#00ff41]/40 rounded-lg shadow-sm text-sm font-bold text-[#00ff41] focus:outline-none uppercase tracking-widest font-mono hover:shadow-[0_0_15px_rgba(0,255,65,0.2)]"
               >
-                Get Started
+                Enlist Now
               </Link>
             </div>
           </div>
@@ -49,7 +49,7 @@ export default function LandingPage() {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00ff41] opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00ff41]"></span>
           </span>
-          System Online v2.0
+          System Online • Powered by Gemini AI
         </div>
 
         <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-[-0.02em] text-white leading-tight mb-6">
@@ -60,15 +60,16 @@ export default function LandingPage() {
         </h1>
 
         <p className="mt-4 max-w-2xl mx-auto text-xl text-gray-400 leading-relaxed font-light">
-          Your tactical <strong className="text-gray-200">AI study companion</strong> for India's toughest defense examinations. Get precise intelligence backed by real study materials.
+          Your tactical <strong className="text-gray-200">AI study companion</strong> for India's toughest defense examinations.
+          Chat with AI, take quizzes, and get precise intelligence backed by real study materials — all with your progress saved in the cloud.
         </p>
 
         <div className="mt-10 flex justify-center gap-4 flex-col sm:flex-row">
           <Link
-            href="/chat"
+            href="/signup"
             className="btn-tactical flex items-center justify-center px-8 py-3.5 border border-[#00ff41]/40 text-base font-bold rounded-lg text-black bg-[#00ff41] hover:bg-[#4ade80] transition-all uppercase tracking-widest shadow-[0_0_20px_rgba(0,255,65,0.3)]"
           >
-            Initiate Training
+            Begin Your Mission
             <ArrowRight className="ml-2 -mr-1 w-5 h-5" />
           </Link>
           <Link
@@ -80,16 +81,37 @@ export default function LandingPage() {
         </div>
 
         {/* Feature Dashboard */}
-        <div className="mt-20 max-w-5xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="mt-20 max-w-6xl mx-auto">
+          <h2 className="text-sm font-mono uppercase tracking-[0.3em] text-[#00ff41]/60 mb-10">Mission Capabilities</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+            <div className="glass-card p-8 rounded-2xl text-left border-t-2 border-t-[#00ff41]/40 group hover:shadow-[0_0_30px_rgba(0,255,65,0.1)]">
+              <div className="w-12 h-12 bg-[#00ff41]/10 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <MessageSquare className="w-6 h-6 text-[#00ff41]" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">AI Chat Command</h3>
+              <p className="text-sm text-gray-400 leading-relaxed">
+                Real-time streaming conversations with Gemini AI. Ask questions, upload images, and get detailed answers backed by your study PDFs.
+              </p>
+            </div>
+
+            <div className="glass-card p-8 rounded-2xl text-left border-t-2 border-t-[#00ff41]/40 group hover:shadow-[0_0_30px_rgba(0,255,65,0.1)]">
+              <div className="w-12 h-12 bg-[#00ff41]/10 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <Award className="w-6 h-6 text-[#00ff41]" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">Tactical Quizzes</h3>
+              <p className="text-sm text-gray-400 leading-relaxed">
+                AI-generated MCQ quizzes for NDA, CDS, AFCAT & more. Choose your topic, difficulty, and question count. Scores saved to your profile.
+              </p>
+            </div>
 
             <div className="glass-card p-8 rounded-2xl text-left border-t-2 border-t-[#00ff41]/40 group hover:shadow-[0_0_30px_rgba(0,255,65,0.1)]">
               <div className="w-12 h-12 bg-[#00ff41]/10 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                 <BookOpen className="w-6 h-6 text-[#00ff41]" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">Tactical RAG Setup</h3>
+              <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">RAG Intelligence</h3>
               <p className="text-sm text-gray-400 leading-relaxed">
-                Powered by cutting-edge vector search, combining intelligent text chunks to extract exact answers from syllabus PDFs.
+                Retrieval-Augmented Generation powered by MongoDB Atlas Vector Search. Every answer is grounded in real study material with source citations.
               </p>
             </div>
 
@@ -99,22 +121,45 @@ export default function LandingPage() {
               </div>
               <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">Exam Radar</h3>
               <p className="text-sm text-gray-400 leading-relaxed">
-                Specialized focus modes for NDA, CDS, AFCAT, and SSB. The AI adapts its strategy based on the specific exam requirements.
+                Specialized focus modes for NDA, CDS, AFCAT, Navy & CAPF. The AI adapts its strategy based on specific exam patterns and syllabus.
               </p>
             </div>
 
             <div className="glass-card p-8 rounded-2xl text-left border-t-2 border-t-[#00ff41]/40 group hover:shadow-[0_0_30px_rgba(0,255,65,0.1)]">
               <div className="w-12 h-12 bg-[#00ff41]/10 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Brain className="w-6 h-6 text-[#00ff41]" />
+                <Database className="w-6 h-6 text-[#00ff41]" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">LLM Intelligence</h3>
+              <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">Cloud Persistence</h3>
               <p className="text-sm text-gray-400 leading-relaxed">
-                Connects to Llama 3 via Groq or Google Gemini to generate human-like, structured responses with source mapping.
+                Your chats, quiz scores, and progress are stored securely in MongoDB Atlas. Pick up right where you left off, from any device.
+              </p>
+            </div>
+
+            <div className="glass-card p-8 rounded-2xl text-left border-t-2 border-t-[#00ff41]/40 group hover:shadow-[0_0_30px_rgba(0,255,65,0.1)]">
+              <div className="w-12 h-12 bg-[#00ff41]/10 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <Lock className="w-6 h-6 text-[#00ff41]" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">Secure Auth</h3>
+              <p className="text-sm text-gray-400 leading-relaxed">
+                Military-grade authentication with bcrypt password hashing and JWT sessions. Sign up with email or Google OAuth.
               </p>
             </div>
 
           </div>
         </div>
+
+        {/* Exam Coverage */}
+        <div className="mt-20 max-w-3xl mx-auto">
+          <h2 className="text-sm font-mono uppercase tracking-[0.3em] text-[#00ff41]/60 mb-8">Supported Operations</h2>
+          <div className="flex flex-wrap justify-center gap-3">
+            {['NDA', 'CDS', 'AFCAT', 'Navy SSR/AA', 'CAPF', 'SSB Interview', 'Indian Military History', 'General Knowledge', 'Current Affairs'].map((exam) => (
+              <span key={exam} className="px-4 py-2 rounded-lg border border-[#00ff41]/20 bg-[#00ff41]/5 text-[#4ade80] text-sm font-mono uppercase tracking-wider hover:bg-[#00ff41]/10 transition-colors cursor-default">
+                {exam}
+              </span>
+            ))}
+          </div>
+        </div>
+
       </main>
 
       {/* Footer */}
@@ -125,7 +170,7 @@ export default function LandingPage() {
             <span className="text-[#00ff41]/60 font-bold tracking-widest uppercase font-mono text-sm">Defense GPT</span>
           </div>
           <p className="text-[#00ff41]/40 text-xs font-mono tracking-widest uppercase text-center">
-            Classified AI Tutor System • Build 2.0
+            AI-Powered Defense Exam Tutor • Gemini + MongoDB Atlas + Next.js
           </p>
         </div>
       </footer>

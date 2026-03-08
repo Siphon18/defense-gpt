@@ -13,7 +13,7 @@ export async function GET() {
         }
 
         const client = await clientPromise
-        const db = client.db()
+        const db = client.db('defensegpt')
         const chats = await db
             .collection('chats')
             .find({ userId: session.user.id })
@@ -44,7 +44,7 @@ export async function POST(request) {
 
         const chat = await request.json()
         const client = await clientPromise
-        const db = client.db()
+        const db = client.db('defensegpt')
         const collection = db.collection('chats')
 
         const chatDoc = {

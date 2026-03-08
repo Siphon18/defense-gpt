@@ -13,7 +13,7 @@ export async function POST(request) {
 
         const result = await request.json()
         const client = await clientPromise
-        const db = client.db()
+        const db = client.db('defensegpt')
 
         const doc = {
             userId: session.user.id,
@@ -45,7 +45,7 @@ export async function GET() {
         }
 
         const client = await clientPromise
-        const db = client.db()
+        const db = client.db('defensegpt')
         const results = await db
             .collection('quiz_results')
             .find({ userId: session.user.id })

@@ -21,7 +21,7 @@ export async function POST(request) {
         }
 
         const client = await clientPromise
-        const db = client.db()
+        const db = client.db('defensegpt')
         const usersCollection = db.collection('users')
 
         // Check if user already exists

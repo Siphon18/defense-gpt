@@ -1,4 +1,4 @@
-const API_BASE = '/backend'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api` : '/backend'
 
 export async function fetchStats() {
   const res = await fetch(`${API_BASE}/stats`)

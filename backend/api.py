@@ -24,11 +24,9 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS — restrict to known frontends
-ALLOWED_ORIGINS = os.getenv(
-    "CORS_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000"
-).split(",")
+# CORS — allow all origins by default in production to easily connect Vercel
+cors_env = os.getenv("CORS_ORIGINS", "*")
+ALLOWED_ORIGINS = ["*"] if cors_env == "*" else cors_env.split(",")
 
 app.add_middleware(
     CORSMiddleware,

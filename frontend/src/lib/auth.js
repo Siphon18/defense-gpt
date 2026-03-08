@@ -12,6 +12,7 @@ export const authOptions = {
         GoogleProvider({
           clientId: process.env.GOOGLE_CLIENT_ID,
           clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          allowDangerousEmailAccountLinking: true,
         }),
       ]
       : []),
@@ -51,9 +52,22 @@ export const authOptions = {
   ],
   session: { strategy: 'jwt' },
   callbacks: {
-    async jwt({ token, user }) {
+    async signIn({ user, account }) {
+      // Always allow sign-in
+      return true
+    },
+    async jwt({ token, user, account }) {
       if (user) {
         token.userId = user.id
+      }
+      // For OAuth, get the user ID from the adapter-created user
+      if (account && account.provider !== 'credentials') {
+        const client = await clientPromise
+        const db = client.db()
+        const dbUser = await db.collection('users').findOne({ email: token.email })
+        if (dbUser) {
+          token.userId = dbUser._id.toString()
+        }
       }
       return token
     },
@@ -66,6 +80,9 @@ export const authOptions = {
   },
   pages: {
     signIn: '/login',
+    error: '/login',
   },
   secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === 'development',
 }
+

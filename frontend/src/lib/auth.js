@@ -4,7 +4,6 @@ import bcrypt from 'bcryptjs'
 import clientPromise from '@/lib/mongodb'
 
 export const authOptions = {
-  // No adapter — we use JWT sessions and handle user creation manually
   providers: [
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'your_google_client_id_here'
       ? [
@@ -25,25 +24,30 @@ export const authOptions = {
           return null
         }
 
-        const client = await clientPromise
-        const db = client.db()
-        const user = await db.collection('users').findOne({
-          email: credentials.email.toLowerCase(),
-        })
+        try {
+          const client = await clientPromise
+          const db = client.db('defensegpt')
+          const user = await db.collection('users').findOne({
+            email: credentials.email.toLowerCase(),
+          })
 
-        if (!user || !user.password) {
+          if (!user || !user.password) {
+            return null
+          }
+
+          const isValid = await bcrypt.compare(credentials.password, user.password)
+          if (!isValid) {
+            return null
+          }
+
+          return {
+            id: user._id.toString(),
+            email: user.email,
+            name: user.name,
+          }
+        } catch (error) {
+          console.error('[AUTH] Credentials error:', error)
           return null
-        }
-
-        const isValid = await bcrypt.compare(credentials.password, user.password)
-        if (!isValid) {
-          return null
-        }
-
-        return {
-          id: user._id.toString(),
-          email: user.email,
-          name: user.name,
         }
       },
     }),
@@ -51,17 +55,15 @@ export const authOptions = {
   session: { strategy: 'jwt' },
   callbacks: {
     async signIn({ user, account, profile }) {
-      // For Google OAuth: create or find user in our DB
       if (account?.provider === 'google') {
         try {
           const client = await clientPromise
-          const db = client.db()
+          const db = client.db('defensegpt')
           const existingUser = await db.collection('users').findOne({
             email: user.email.toLowerCase(),
           })
 
           if (!existingUser) {
-            // Create a new user for Google OAuth
             await db.collection('users').insertOne({
               name: user.name || profile?.name || 'User',
               email: user.email.toLowerCase(),
@@ -69,33 +71,38 @@ export const authOptions = {
               provider: 'google',
               createdAt: new Date(),
             })
+            console.log('[AUTH] Created Google user:', user.email)
+          } else {
+            console.log('[AUTH] Found existing user:', user.email)
           }
         } catch (error) {
-          console.error('Google sign-in DB error:', error)
+          console.error('[AUTH] Google signIn DB error:', error)
           return false
         }
       }
       return true
     },
     async jwt({ token, user, account }) {
-      // For credentials login — user.id comes from authorize()
-      if (user?.id) {
-        token.userId = user.id
-      }
-      // For Google OAuth — look up the user ID from our DB
-      if (account?.provider === 'google') {
-        try {
+      try {
+        // For credentials login, user.id is already the MongoDB _id
+        if (user?.id && account?.provider === 'credentials') {
+          token.userId = user.id
+        }
+
+        // For Google OAuth, look up the MongoDB user by email
+        if (account?.provider === 'google') {
           const client = await clientPromise
-          const db = client.db()
+          const db = client.db('defensegpt')
           const dbUser = await db.collection('users').findOne({
-            email: token.email?.toLowerCase(),
+            email: (user?.email || token?.email)?.toLowerCase(),
           })
           if (dbUser) {
             token.userId = dbUser._id.toString()
+            console.log('[AUTH] JWT: Set userId for Google user:', token.userId)
           }
-        } catch (error) {
-          console.error('JWT callback DB error:', error)
         }
+      } catch (error) {
+        console.error('[AUTH] JWT callback error:', error)
       }
       return token
     },
@@ -111,5 +118,5 @@ export const authOptions = {
     error: '/login',
   },
   secret: process.env.NEXTAUTH_SECRET,
-  debug: process.env.NODE_ENV === 'development',
+  debug: true,
 }

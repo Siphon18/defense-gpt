@@ -283,7 +283,9 @@ def delete_pdf(filename: str):
 @router.post("/ask/stream")
 async def ask_stream(request: QueryRequest):
     """Stream a response token-by-token using SSE."""
-    context, chunks = rag_engine.build_context(
+    # Run the CPU-heavy/blocking embedding function in a thread
+    context, chunks = await asyncio.to_thread(
+        rag_engine.build_context,
         query=request.query,
         top_k=request.top_k,
         source_filter=request.source_filter,

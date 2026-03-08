@@ -1,17 +1,41 @@
 "use client"
-import { Shield, Lock, ShieldCheck, Mail, KeyRound, Cpu } from 'lucide-react'
-import { useState } from 'react'
+import { Shield, Lock, ShieldCheck, Mail, KeyRound, Cpu, AlertTriangle } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
+import { Suspense } from 'react'
 
-export default function LoginPage() {
+// NextAuth error messages mapped to user-friendly text
+const ERROR_MESSAGES = {
+  OAuthSignin: 'Error starting Google sign-in. Check your OAuth configuration.',
+  OAuthCallback: 'Google sign-in callback failed. Check redirect URI settings.',
+  OAuthCreateAccount: 'Could not create account with Google. Try email signup.',
+  EmailCreateAccount: 'Could not create account with that email.',
+  Callback: 'Authentication callback error. Please try again.',
+  OAuthAccountNotLinked: 'This email is already registered with a different method.',
+  CredentialsSignin: 'Invalid email or password.',
+  SessionRequired: 'Please sign in to access this page.',
+  Default: 'An authentication error occurred. Please try again.',
+}
+
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
+
+  // Capture error from URL query params (NextAuth redirects with ?error=...)
+  useEffect(() => {
+    const urlError = searchParams.get('error')
+    if (urlError) {
+      setError(ERROR_MESSAGES[urlError] || ERROR_MESSAGES.Default)
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -26,19 +50,26 @@ export default function LoginPage() {
       })
 
       if (res?.error) {
-        setError('Invalid credentials')
+        setError(ERROR_MESSAGES.CredentialsSignin)
       } else {
         router.push('/chat')
       }
     } catch (err) {
-      setError('An error occurred. Please try again.')
+      setError('Connection failed. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleGoogleSignIn = () => {
-    signIn('google', { callbackUrl: '/chat' })
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true)
+    setError('')
+    try {
+      await signIn('google', { callbackUrl: '/chat' })
+    } catch (err) {
+      setError('Failed to connect to Google. Please try again.')
+      setGoogleLoading(false)
+    }
   }
 
   return (
@@ -93,14 +124,18 @@ export default function LoginPage() {
 
           <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm flex items-center gap-2">
-                <ShieldCheck size={16} />
-                <span>Access Denied: {error}</span>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg text-sm flex items-start gap-2"
+              >
+                <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                <span>{error}</span>
+              </motion.div>
             )}
 
             <div>
-              <label placholder="Email address" className="block text-xs font-mono uppercase tracking-wider text-[#00ff41]/70 mb-2">
+              <label className="block text-xs font-mono uppercase tracking-wider text-[#00ff41]/70 mb-2">
                 Operative ID
               </label>
               <div className="mt-1 relative">
@@ -173,10 +208,20 @@ export default function LoginPage() {
             <div className="mt-6">
               <button
                 onClick={handleGoogleSignIn}
-                className="w-full flex justify-center items-center gap-2 py-2.5 px-4 border border-gray-700/50 rounded-lg shadow-sm bg-[#1a2a1e]/40 text-sm font-medium text-gray-300 hover:bg-[#1a2a1e]/80 transition-all duration-300"
+                disabled={googleLoading}
+                className="w-full flex justify-center items-center gap-2 py-2.5 px-4 border border-gray-700/50 rounded-lg shadow-sm bg-[#1a2a1e]/40 text-sm font-medium text-gray-300 hover:bg-[#1a2a1e]/80 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="h-4" />
-                Google Network
+                {googleLoading ? (
+                  <>
+                    <Cpu className="animate-spin" size={16} />
+                    Connecting to Google...
+                  </>
+                ) : (
+                  <>
+                    <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="h-4" />
+                    Google Network
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -192,5 +237,17 @@ export default function LoginPage() {
         </div>
       </motion.div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0a0f0a] flex items-center justify-center">
+        <Cpu className="animate-spin text-[#00ff41]" size={32} />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }

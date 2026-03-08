@@ -1,18 +1,16 @@
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
-import { MongoDBAdapter } from '@auth/mongodb-adapter'
 import bcrypt from 'bcryptjs'
 import clientPromise from '@/lib/mongodb'
 
 export const authOptions = {
-  adapter: MongoDBAdapter(clientPromise),
+  // No adapter — we use JWT sessions and handle user creation manually
   providers: [
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'your_google_client_id_here'
       ? [
         GoogleProvider({
           clientId: process.env.GOOGLE_CLIENT_ID,
           clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-          allowDangerousEmailAccountLinking: true,
         }),
       ]
       : []),
@@ -52,21 +50,51 @@ export const authOptions = {
   ],
   session: { strategy: 'jwt' },
   callbacks: {
-    async signIn({ user, account }) {
-      // Always allow sign-in
+    async signIn({ user, account, profile }) {
+      // For Google OAuth: create or find user in our DB
+      if (account?.provider === 'google') {
+        try {
+          const client = await clientPromise
+          const db = client.db()
+          const existingUser = await db.collection('users').findOne({
+            email: user.email.toLowerCase(),
+          })
+
+          if (!existingUser) {
+            // Create a new user for Google OAuth
+            await db.collection('users').insertOne({
+              name: user.name || profile?.name || 'User',
+              email: user.email.toLowerCase(),
+              image: user.image || profile?.picture,
+              provider: 'google',
+              createdAt: new Date(),
+            })
+          }
+        } catch (error) {
+          console.error('Google sign-in DB error:', error)
+          return false
+        }
+      }
       return true
     },
     async jwt({ token, user, account }) {
-      if (user) {
+      // For credentials login — user.id comes from authorize()
+      if (user?.id) {
         token.userId = user.id
       }
-      // For OAuth, get the user ID from the adapter-created user
-      if (account && account.provider !== 'credentials') {
-        const client = await clientPromise
-        const db = client.db()
-        const dbUser = await db.collection('users').findOne({ email: token.email })
-        if (dbUser) {
-          token.userId = dbUser._id.toString()
+      // For Google OAuth — look up the user ID from our DB
+      if (account?.provider === 'google') {
+        try {
+          const client = await clientPromise
+          const db = client.db()
+          const dbUser = await db.collection('users').findOne({
+            email: token.email?.toLowerCase(),
+          })
+          if (dbUser) {
+            token.userId = dbUser._id.toString()
+          }
+        } catch (error) {
+          console.error('JWT callback DB error:', error)
         }
       }
       return token
@@ -85,4 +113,3 @@ export const authOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === 'development',
 }
-

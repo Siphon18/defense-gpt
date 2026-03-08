@@ -8,7 +8,6 @@
     "start": "next start -p 3000"
   },
   "dependencies": {
-    "@auth/mongodb-adapter": "^3.11.1",
     "bcryptjs": "^3.0.3",
     "framer-motion": "^11.18.0",
     "lucide-react": "^0.460.0",

@@ -47,7 +47,7 @@ export default function Sidebar({
     },
     closed: {
       width: 0,
-      x: isMobile ? -300 : 0,
+      x: -300,
       opacity: 0,
       transition: { duration: 0.3, ease: "circIn" }
     }

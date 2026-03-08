@@ -1,0 +1,555 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════
+   DEFENSE GPT — TACTICAL COMMAND CENTER THEME
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Radar / Tactical Animations ── */
+@keyframes radarSweep {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes radarPulse {
+
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.4;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes scanLine {
+  0% {
+    top: -2px;
+    opacity: 1;
+  }
+
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes glowPulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 5px rgba(0, 255, 65, 0.1);
+  }
+
+  50% {
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.25);
+  }
+}
+
+@keyframes typingRadar {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.2;
+  }
+
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(0.5);
+    opacity: 0.2;
+  }
+}
+
+@keyframes ringProgress {
+  from {
+    stroke-dashoffset: 283;
+  }
+}
+
+@keyframes gridScroll {
+  0% {
+    background-position: 0 0;
+  }
+
+  100% {
+    background-position: 40px 40px;
+  }
+}
+
+@keyframes borderGlow {
+
+  0%,
+  100% {
+    border-color: rgba(0, 255, 65, 0.15);
+  }
+
+  50% {
+    border-color: rgba(0, 255, 65, 0.4);
+  }
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes particleFloat {
+  0% {
+    transform: translateY(100vh) translateX(0);
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 0.6;
+  }
+
+  90% {
+    opacity: 0.6;
+  }
+
+  100% {
+    transform: translateY(-10vh) translateX(30px);
+    opacity: 0;
+  }
+}
+
+@keyframes textGlow {
+
+  0%,
+  100% {
+    text-shadow: 0 0 4px rgba(0, 255, 65, 0.3);
+  }
+
+  50% {
+    text-shadow: 0 0 12px rgba(0, 255, 65, 0.6);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.35s ease-out;
+}
+
+.animate-glow-pulse {
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+.animate-border-glow {
+  animation: borderGlow 3s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-text-glow {
+  animation: textGlow 2s ease-in-out infinite;
+}
+
+/* ── Radar Grid Background ── */
+.radar-grid-bg {
+  position: relative;
+  overflow: hidden;
+}
+
+.radar-grid-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0, 255, 65, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 65, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: gridScroll 20s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Scan Line Effect ── */
+.scan-line::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.5), transparent);
+  animation: scanLine 4s linear infinite;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ── Particles ── */
+.particle {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: rgba(0, 255, 65, 0.4);
+  border-radius: 50%;
+  animation: particleFloat linear infinite;
+  pointer-events: none;
+}
+
+/* ── Glassmorphism Classes ── */
+.glass {
+  background: rgba(10, 20, 12, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 255, 65, 0.08);
+}
+
+.glass-card {
+  background: rgba(10, 20, 12, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 255, 65, 0.1);
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  border-color: rgba(0, 255, 65, 0.25);
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.08), inset 0 0 20px rgba(0, 255, 65, 0.02);
+}
+
+.glass-input {
+  background: rgba(10, 20, 12, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 255, 65, 0.12);
+  transition: all 0.3s ease;
+}
+
+.glass-input:focus-within {
+  border-color: rgba(0, 255, 65, 0.4);
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.1);
+}
+
+/* ── Tactical Button ── */
+.btn-tactical {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.btn-tactical::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(0, 255, 65, 0.1), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.btn-tactical:hover::before {
+  opacity: 1;
+}
+
+.btn-tactical:hover {
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.15);
+  border-color: rgba(0, 255, 65, 0.4);
+}
+
+/* ── Hover Glow Effect ── */
+.hover-glow {
+  transition: all 0.3s ease;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.12);
+}
+
+/* ── Radar Typing Indicator ── */
+.typing-radar-dot {
+  width: 8px;
+  height: 8px;
+  background: #00ff41;
+  border-radius: 50%;
+  animation: typingRadar 1.4s ease-in-out infinite;
+  box-shadow: 0 0 6px rgba(0, 255, 65, 0.6);
+}
+
+.typing-radar-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-radar-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 65, 0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 65, 0.35);
+}
+
+/* ══════════════════════════════════════════════════════════
+   ChatGPT-style Markdown Rendering (Tactical Green Theme)
+   ══════════════════════════════════════════════════════════ */
+.prose-chat {
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  color: #d1d5db;
+}
+
+.prose-chat h1 {
+  color: #00ff41;
+  font-weight: 700;
+  font-size: 1.5rem;
+  margin-top: 1.25em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+  text-shadow: 0 0 8px rgba(0, 255, 65, 0.2);
+}
+
+.prose-chat h2 {
+  color: #4ade80;
+  font-weight: 700;
+  font-size: 1.25rem;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid rgba(0, 255, 65, 0.15);
+}
+
+.prose-chat h2:first-child {
+  margin-top: 0;
+}
+
+.prose-chat h3 {
+  color: #86efac;
+  font-weight: 600;
+  font-size: 1.1rem;
+  margin-top: 1.25em;
+  margin-bottom: 0.4em;
+  line-height: 1.3;
+}
+
+.prose-chat h4,
+.prose-chat h5,
+.prose-chat h6 {
+  color: #bbf7d0;
+  font-weight: 600;
+  margin-top: 1em;
+  margin-bottom: 0.3em;
+  line-height: 1.3;
+}
+
+.prose-chat p {
+  margin-top: 0;
+  margin-bottom: 0.75em;
+}
+
+.prose-chat p:last-child {
+  margin-bottom: 0;
+}
+
+.prose-chat ul {
+  list-style-type: disc;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  padding-left: 1.5em;
+}
+
+.prose-chat ol {
+  list-style-type: decimal;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  padding-left: 1.5em;
+}
+
+.prose-chat li {
+  margin-bottom: 0.25em;
+  display: list-item;
+}
+
+.prose-chat li>p {
+  margin-bottom: 0.25em;
+}
+
+.prose-chat li::marker {
+  color: #00ff41;
+}
+
+.prose-chat strong,
+.prose-chat b {
+  color: #e2e8f0;
+  font-weight: 700;
+}
+
+.prose-chat em,
+.prose-chat i {
+  color: #a7f3d0;
+  font-style: italic;
+}
+
+.prose-chat blockquote {
+  border-left: 3px solid #00ff41;
+  padding: 0.5em 1em;
+  margin: 0.75em 0;
+  background: rgba(0, 255, 65, 0.04);
+  border-radius: 0 8px 8px 0;
+  color: #bbf7d0;
+}
+
+.prose-chat blockquote p {
+  margin-bottom: 0;
+}
+
+.prose-chat code {
+  background: rgba(0, 255, 65, 0.08);
+  color: #86efac;
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+}
+
+.prose-chat pre {
+  background: rgba(0, 15, 5, 0.8);
+  border: 1px solid rgba(0, 255, 65, 0.12);
+  border-radius: 8px;
+  padding: 1em;
+  overflow-x: auto;
+  margin: 0.75em 0;
+}
+
+.prose-chat pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.85em;
+  color: #86efac;
+}
+
+.prose-chat table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75em 0;
+  font-size: 0.875rem;
+}
+
+.prose-chat th {
+  background: rgba(0, 255, 65, 0.08);
+  color: #4ade80;
+  padding: 0.5em 0.75em;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid rgba(0, 255, 65, 0.2);
+}
+
+.prose-chat td {
+  padding: 0.5em 0.75em;
+  border-bottom: 1px solid rgba(0, 255, 65, 0.08);
+}
+
+.prose-chat tr:hover td {
+  background: rgba(0, 255, 65, 0.03);
+}
+
+.prose-chat hr {
+  border: none;
+  border-top: 1px solid rgba(0, 255, 65, 0.15);
+  margin: 1.5em 0;
+}
+
+.prose-chat a {
+  color: #00ff41;
+  text-decoration: underline;
+  text-decoration-color: rgba(0, 255, 65, 0.3);
+}
+
+.prose-chat a:hover {
+  text-decoration-color: #00ff41;
+}
+
+/* ── Progress Ring ── */
+.progress-ring-circle {
+  transition: stroke-dashoffset 1s ease-in-out;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+/* ── Responsive Utilities ── */
+@media (max-width: 1024px) {
+  .prose-chat {
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .glass {
+    padding: 1.5rem !important;
+  }
+
+  .glass-card {
+    padding: 1.25rem !important;
+  }
+
+  h1 {
+    font-size: 2rem !important;
+  }
+
+  .radar-grid-bg::before {
+    background-size: 30px 30px;
+  }
+}
+
+@media (max-width: 640px) {
+  .glass {
+    padding: 1rem !important;
+    border-radius: 1rem !important;
+  }
+
+  .prose-chat h1 {
+    font-size: 1.25rem;
+  }
+
+  .prose-chat h2 {
+    font-size: 1.125rem;
+  }
+
+  /* Prevent horizontal overflow on small screens */
+  main {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+}

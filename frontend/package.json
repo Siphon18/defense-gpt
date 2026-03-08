@@ -1,0 +1,27 @@
+{
+  "name": "defense-gpt-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000"
+  },
+  "dependencies": {
+    "@auth/mongodb-adapter": "^3.11.1",
+    "bcryptjs": "^3.0.3",
+    "framer-motion": "^11.18.0",
+    "lucide-react": "^0.460.0",
+    "mongodb": "^7.1.0",
+    "next": "^14.2.20",
+    "next-auth": "^4.24.11",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.3",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "tailwindcss": "^4.0.0"
+  }
+}

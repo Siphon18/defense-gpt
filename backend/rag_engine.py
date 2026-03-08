@@ -5,7 +5,6 @@ Handles semantic search over ingested PDF content stored in MongoDB.
 
 import os
 from pymongo import MongoClient
-from sentence_transformers import SentenceTransformer
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
@@ -36,6 +35,7 @@ class RAGEngine:
     def model(self):
         if self._model is None:
             print("Loading embedding model...")
+            from sentence_transformers import SentenceTransformer
             self._model = SentenceTransformer('all-MiniLM-L6-v2')
         return self._model
 

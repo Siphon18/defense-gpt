@@ -305,7 +305,7 @@ export default function ChatArea({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="mb-3 inline-flex items-center gap-2 glass-card pr-2 pl-3 py-1.5 rounded-lg border border-[#00ff41]/30"
+              className="mb-3 inline-flex items-center gap-2 glass-card pr-2 pl-3 py-1.5 rounded-lg border border-[#00ff41]/30 mx-2 sm:mx-0"
             >
               <ImageIcon size={14} className="text-[#00ff41]/70" />
               <span className="text-xs text-[#00ff41]/70 font-mono">Image attached</span>
@@ -320,7 +320,7 @@ export default function ChatArea({
           )}
         </AnimatePresence>
 
-        <div className="glass-input flex items-end gap-2 rounded-xl px-4 py-2.5">
+        <div className="glass-input flex items-end gap-1.5 sm:gap-2 rounded-xl px-2 sm:px-4 py-2 sm:py-2.5 mx-1 sm:mx-0">
           {/* Hidden File Input */}
           <input
             type="file"

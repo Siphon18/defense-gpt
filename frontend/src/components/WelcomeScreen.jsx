@@ -106,7 +106,7 @@ export default function WelcomeScreen({ stats, onQuickPrompt }) {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.3 }}
-            className="flex justify-center gap-8 mb-8 py-4"
+            className="flex flex-wrap justify-center gap-4 sm:gap-8 mb-8 py-4"
           >
             <ProgressRing value={stats.total_chunks} max={25000} size={64} label="Intel Chunks" />
             <ProgressRing value={stats.total_pdfs} max={10} size={64} label="Study Docs" />

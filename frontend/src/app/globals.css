@@ -328,6 +328,8 @@
   font-size: 0.9375rem;
   line-height: 1.75;
   color: #d1d5db;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .prose-chat h1 {
@@ -450,6 +452,7 @@
   border-radius: 8px;
   padding: 1em;
   overflow-x: auto;
+  max-width: 100%;
   margin: 0.75em 0;
 }
 

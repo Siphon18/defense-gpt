@@ -60,7 +60,7 @@ function ProgressRing({ value, max, size = 60, label }) {
 
 export default function WelcomeScreen({ stats, onQuickPrompt }) {
   return (
-    <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 py-12 overflow-y-auto relative">
+    <div className="flex-1 min-h-0 flex flex-col items-center px-4 py-6 sm:py-12 overflow-y-auto relative">
       {/* Floating particles */}
       {[...Array(6)].map((_, i) => (
         <div
@@ -78,7 +78,7 @@ export default function WelcomeScreen({ stats, onQuickPrompt }) {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-2xl text-center relative z-10"
+        className="w-full max-w-2xl text-center relative z-10 mt-auto mb-auto pt-6 pb-2"
       >
         {/* Radar rings behind shield */}
         <div className="relative flex items-center justify-center mb-5">

@@ -152,7 +152,7 @@ export default function ChatPage() {
         onSignOut={() => signOut({ callbackUrl: '/' })}
       />
 
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 min-h-0">
         {showWelcome && (
           <WelcomeScreen stats={stats} onQuickPrompt={handleQuickPrompt} />
         )}

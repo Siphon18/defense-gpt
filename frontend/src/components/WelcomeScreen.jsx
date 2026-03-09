@@ -60,7 +60,7 @@ function ProgressRing({ value, max, size = 60, label }) {
 
 export default function WelcomeScreen({ stats, onQuickPrompt }) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 py-12 overflow-y-auto relative">
+    <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 py-12 overflow-y-auto relative">
       {/* Floating particles */}
       {[...Array(6)].map((_, i) => (
         <div

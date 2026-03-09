@@ -40,7 +40,7 @@ export default function Sidebar({
 
   const sidebarVariants = {
     open: {
-      width: isMobile ? '100vw' : 280,
+      width: isMobile ? '100%' : 280,
       x: 0,
       opacity: 1,
       transition: { duration: 0.3, ease: "circOut" }
@@ -94,7 +94,7 @@ export default function Sidebar({
             {/* Scan line effect */}
             <div className="absolute inset-0 scan-line pointer-events-none opacity-20" />
 
-            <div className={`flex flex-col h-full relative z-10 ${isMobile ? 'w-[300px]' : 'w-[280px]'}`}>
+            <div className={`flex flex-col h-full relative z-10 w-full ${isMobile ? 'max-w-[300px]' : 'max-w-[280px]'}`}>
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-5 border-b border-[#00ff41]/10">
                 <div className="flex items-center gap-3">

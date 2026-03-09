@@ -62,9 +62,9 @@ export default function Sidebar({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             onClick={onToggle}
-            className="fixed top-4 left-4 z-50 p-3 rounded-xl glass btn-tactical border border-[#00ff41]/20 hover:border-[#00ff41]/50 shadow-[0_0_20px_rgba(0,255,65,0.1)] group"
+            className="fixed top-1/2 left-0 -translate-y-1/2 z-50 p-2 py-4 rounded-r-xl rounded-l-none glass border border-l-0 border-[#00ff41]/30 hover:border-[#00ff41]/70 shadow-[5px_0_20px_rgba(0,255,65,0.15)] group bg-[#070e09]/90 backdrop-blur-md flex items-center justify-center"
           >
-            {isMobile ? <Menu size={20} className="text-[#00ff41]" /> : <PanelLeft size={20} className="text-[#00ff41]/70 group-hover:text-[#00ff41]" />}
+            {isMobile ? <Menu size={20} className="text-[#00ff41]" /> : <PanelLeft size={20} className="text-[#00ff41]/60 group-hover:text-[#00ff41]" />}
           </motion.button>
         )}
       </AnimatePresence>

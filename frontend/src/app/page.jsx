@@ -49,19 +49,15 @@ export default function LandingPage() {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00ff41] opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00ff41]"></span>
           </span>
-          System Online • Powered by Gemini AI
+          System Online • Ready for your success
         </div>
 
         <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-[-0.02em] text-white leading-tight mb-6">
-          PREPARE FOR{' '}
-          <span className="relative whitespace-nowrap text-[#00ff41] animate-text-glow font-mono px-2">
-            <span className="relative z-10">COMMAND</span>
-          </span>
+          Your personal AI trainer for India's toughest defense exams
         </h1>
 
         <p className="mt-4 max-w-2xl mx-auto text-xl text-gray-400 leading-relaxed font-light">
-          Your tactical <strong className="text-gray-200">AI study companion</strong> for India's toughest defense examinations.
-          Chat with AI, take quizzes, and get precise intelligence backed by real study materials — all with your progress saved in the cloud.
+          Train smarter, practice quizzes, and get actionable insights for NDA, CDS, AFCAT, Navy, CAPF, and SSB. Everything you need to boost your preparation and achieve your goals.
         </p>
 
         <div className="mt-10 flex justify-center gap-4 flex-col sm:flex-row">
@@ -82,75 +78,41 @@ export default function LandingPage() {
 
         {/* Feature Dashboard */}
         <div className="mt-20 max-w-6xl mx-auto">
-          <h2 className="text-sm font-mono uppercase tracking-[0.3em] text-[#00ff41]/60 mb-10">Mission Capabilities</h2>
+          <h2 className="text-sm font-mono uppercase tracking-[0.3em] text-[#00ff41]/60 mb-10">How You Benefit</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
             <div className="glass-card p-8 rounded-2xl text-left border-t-2 border-t-[#00ff41]/40 group hover:shadow-[0_0_30px_rgba(0,255,65,0.1)]">
               <div className="w-12 h-12 bg-[#00ff41]/10 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                 <MessageSquare className="w-6 h-6 text-[#00ff41]" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">AI Chat Command</h3>
+              <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">Personalized Guidance</h3>
               <p className="text-sm text-gray-400 leading-relaxed">
-                Real-time streaming conversations with Gemini AI. Ask questions, upload images, and get detailed answers backed by your study PDFs.
+                Get answers to your questions, exam strategies, and study tips tailored to your needs.
               </p>
             </div>
-
             <div className="glass-card p-8 rounded-2xl text-left border-t-2 border-t-[#00ff41]/40 group hover:shadow-[0_0_30px_rgba(0,255,65,0.1)]">
               <div className="w-12 h-12 bg-[#00ff41]/10 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                 <Award className="w-6 h-6 text-[#00ff41]" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">Tactical Quizzes</h3>
+              <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">Practice Quizzes</h3>
               <p className="text-sm text-gray-400 leading-relaxed">
-                AI-generated MCQ quizzes for NDA, CDS, AFCAT & more. Choose your topic, difficulty, and question count. Scores saved to your profile.
+                Sharpen your skills with topic-based quizzes and instant feedback. Track your progress and improve every day.
               </p>
             </div>
-
             <div className="glass-card p-8 rounded-2xl text-left border-t-2 border-t-[#00ff41]/40 group hover:shadow-[0_0_30px_rgba(0,255,65,0.1)]">
               <div className="w-12 h-12 bg-[#00ff41]/10 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                 <BookOpen className="w-6 h-6 text-[#00ff41]" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">RAG Intelligence</h3>
+              <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">Exam Insights</h3>
               <p className="text-sm text-gray-400 leading-relaxed">
-                Retrieval-Augmented Generation powered by MongoDB Atlas Vector Search. Every answer is grounded in real study material with source citations.
+                Access up-to-date information, tips, and resources for all major defense exams in one place.
               </p>
             </div>
-
-            <div className="glass-card p-8 rounded-2xl text-left border-t-2 border-t-[#00ff41]/40 group hover:shadow-[0_0_30px_rgba(0,255,65,0.1)]">
-              <div className="w-12 h-12 bg-[#00ff41]/10 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Radar className="w-6 h-6 text-[#00ff41]" />
-              </div>
-              <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">Exam Radar</h3>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                Specialized focus modes for NDA, CDS, AFCAT, Navy & CAPF. The AI adapts its strategy based on specific exam patterns and syllabus.
-              </p>
-            </div>
-
-            <div className="glass-card p-8 rounded-2xl text-left border-t-2 border-t-[#00ff41]/40 group hover:shadow-[0_0_30px_rgba(0,255,65,0.1)]">
-              <div className="w-12 h-12 bg-[#00ff41]/10 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Database className="w-6 h-6 text-[#00ff41]" />
-              </div>
-              <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">Cloud Persistence</h3>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                Your chats, quiz scores, and progress are stored securely in MongoDB Atlas. Pick up right where you left off, from any device.
-              </p>
-            </div>
-
-            <div className="glass-card p-8 rounded-2xl text-left border-t-2 border-t-[#00ff41]/40 group hover:shadow-[0_0_30px_rgba(0,255,65,0.1)]">
-              <div className="w-12 h-12 bg-[#00ff41]/10 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Lock className="w-6 h-6 text-[#00ff41]" />
-              </div>
-              <h3 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-wider">Secure Auth</h3>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                Military-grade authentication with bcrypt password hashing and JWT sessions. Sign up with email or Google OAuth.
-              </p>
-            </div>
-
           </div>
         </div>
 
         {/* Exam Coverage */}
         <div className="mt-20 max-w-3xl mx-auto">
-          <h2 className="text-sm font-mono uppercase tracking-[0.3em] text-[#00ff41]/60 mb-8">Supported Operations</h2>
+          <h2 className="text-sm font-mono uppercase tracking-[0.3em] text-[#00ff41]/60 mb-8">Exam Coverage</h2>
           <div className="flex flex-wrap justify-center gap-3">
             {['NDA', 'CDS', 'AFCAT', 'Navy SSR/AA', 'CAPF', 'SSB Interview', 'Indian Military History', 'General Knowledge', 'Current Affairs'].map((exam) => (
               <span key={exam} className="px-4 py-2 rounded-lg border border-[#00ff41]/20 bg-[#00ff41]/5 text-[#4ade80] text-sm font-mono uppercase tracking-wider hover:bg-[#00ff41]/10 transition-colors cursor-default">
@@ -170,7 +132,7 @@ export default function LandingPage() {
             <span className="text-[#00ff41]/60 font-bold tracking-widest uppercase font-mono text-sm">Defense GPT</span>
           </div>
           <p className="text-[#00ff41]/40 text-xs font-mono tracking-widest uppercase text-center">
-            AI-Powered Defense Exam Tutor • Gemini + MongoDB Atlas + Next.js
+            Your trusted exam preparation partner. Prepare smarter, achieve higher, and unlock your potential.
           </p>
         </div>
       </footer>

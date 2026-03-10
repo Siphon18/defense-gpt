@@ -124,16 +124,18 @@ def _build_user_message(query: str, context: str, exam_type: str) -> str:
         user_message += f"## Retrieved Study Material:\n{context}\n\n---\n\n"
     if exam_type and exam_type != "General":
         user_message += f"**Target Exam: {exam_type}**\n\n"
-    
+
     user_message += f"**Student's Question:** {query}\n\n"
-    
+
     user_message += (
         "---\n"
         "**CRITICAL INSTRUCTION TO INSTRUCTOR:**\n"
         "1. If the question is about defense exams or syllabus topics, prioritize the 'Retrieved Study Material' above to answer it factually.\n"
-        "2. If the student is asking a casual question, chatting playfully, greeting you, or asking general non-exam questions (e.g., 'kya baat hai', 'how are you', 'tell me a joke'), completely **IGNORE the study material** and answer naturally in character as their Commanding Officer. Do NOT quote irrelevant facts from the material just because it was retrieved."
+        "2. If web findings are present in the context, reference them directly in your answer and cite relevant web facts or links.\n"
+        "3. If context contains 'WEB_VERIFICATION: unavailable', do NOT provide specific latest/current-affairs claims from memory. Clearly state verification is unavailable and ask the cadet to retry.\n"
+        "4. If the student is asking a casual question, chatting playfully, greeting you, or asking general non-exam questions (e.g., 'kya baat hai', 'how are you', 'tell me a joke'), completely **IGNORE the study material** and answer naturally in character as their Commanding Officer. Do NOT quote irrelevant facts from the material just because it was retrieved."
     )
-    
+
     return user_message
 
 
@@ -433,14 +435,22 @@ class GeminiClient:
 
 class SmartRouterClient:
     def __init__(self):
+        self.provider = os.getenv("LLM_PROVIDER", "groq").strip().lower()
         self.groq = GroqClient()
-        self.gemini = GeminiClient()
+        self.gemini = None
+        # Keep Gemini optional so Groq-only setups don't fail at startup.
+        try:
+            self.gemini = GeminiClient()
+        except Exception:
+            self.gemini = None
         self.default_model = self.groq.default_model
 
     def generate_response(self, query, context="", exam_type="General",
                           chat_history=None, model=None, temperature=0.3,
                           max_tokens=2048, image_data=None) -> str:
         if image_data:
+            if not self.gemini:
+                return "**Reconnaissance Failed:** Image prompts require Gemini, but GEMINI_API_KEY is not configured."
             gemini_model = "gemini-2.0-flash" if not model or "gemini" not in model else model
             try:
                 return self.gemini.generate_response(query, context, exam_type, chat_history, gemini_model, temperature, max_tokens, image_data)
@@ -460,6 +470,9 @@ class SmartRouterClient:
                         chat_history=None, model=None, temperature=0.3,
                         max_tokens=2048, image_data=None):
         if image_data:
+            if not self.gemini:
+                yield "**Reconnaissance Failed:** Image prompts require Gemini, but GEMINI_API_KEY is not configured."
+                return
             gemini_model = "gemini-2.0-flash" if not model or "gemini" not in model else model
             try:
                 yield from self.gemini.stream_response(query, context, exam_type, chat_history, gemini_model, temperature, max_tokens, image_data)
@@ -474,7 +487,10 @@ class SmartRouterClient:
         return self.groq.generate_suggestions(query, answer, exam_type)
 
     def get_available_models(self) -> list[str]:
-        return self.groq.get_available_models() + self.gemini.get_available_models()
+        models = self.groq.get_available_models()
+        if self.gemini:
+            models += self.gemini.get_available_models()
+        return models
 
 def _create_client():
     return SmartRouterClient()

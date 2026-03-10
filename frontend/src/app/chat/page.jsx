@@ -21,6 +21,7 @@ export default function ChatPage() {
   const [stats, setStats] = useState({ total_chunks: 0, total_pdfs: 0, pdf_names: [] })
   const [models, setModels] = useState([])
   const [defaultModel, setDefaultModel] = useState(null)
+  const [useLiveWebSearch, setUseLiveWebSearch] = useState(true)
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/login')
@@ -124,6 +125,8 @@ export default function ChatPage() {
     temperature: 0.3,
     topK: 5,
     sourceFilter: null,
+    useLiveWebSearch,
+    setUseLiveWebSearch,
   }
 
   if (status === 'loading') {

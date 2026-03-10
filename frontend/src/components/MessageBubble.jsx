@@ -9,7 +9,9 @@ function SourcesPanel({ sources }) {
   const [open, setOpen] = useState(false)
   if (!sources || sources.length === 0) return null
 
-  const unique = sources.filter((s, i, arr) => arr.findIndex(x => x.source === s.source) === i)
+  // Separate web sources
+  const webSources = sources.filter(s => s.source === 'web')
+  const docSources = sources.filter(s => s.source !== 'web')
 
   return (
     <div className="mt-3">
@@ -19,7 +21,7 @@ function SourcesPanel({ sources }) {
       >
         <FileText size={11} />
         {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        {unique.length} intel source{unique.length !== 1 ? 's' : ''}
+        {sources.length} intel source{sources.length !== 1 ? 's' : ''}
       </button>
       {open && (
         <motion.div
@@ -28,7 +30,7 @@ function SourcesPanel({ sources }) {
           exit={{ opacity: 0, height: 0 }}
           className="mt-2 space-y-1.5"
         >
-          {unique.map((s, i) => (
+          {docSources.map((s, i) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, x: -8 }}
@@ -42,6 +44,33 @@ function SourcesPanel({ sources }) {
               )}
             </motion.div>
           ))}
+          {webSources.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: docSources.length * 0.05 }}
+              className="text-xs glass-card rounded-lg px-3 py-2 border-l-2 border-blue-400/30 bg-blue-50/10"
+            >
+              <span className="text-blue-400 font-medium font-mono">Web Findings</span>
+              <ul className="mt-1 text-gray-600 list-disc pl-4">
+                {webSources.map((w, idx) => {
+                  try {
+                    const items = JSON.parse(w.preview)
+                    return items.map((item, j) => (
+                      <li key={j} className="mb-1">
+                        <span className="font-bold">{item.title}</span>: {item.snippet}
+                        {item.link && (
+                          <a href={item.link} target="_blank" rel="noopener noreferrer" className="ml-1 text-blue-400 underline">[source]</a>
+                        )}
+                      </li>
+                    ))
+                  } catch {
+                    return <li key={idx}>{w.preview}</li>
+                  }
+                })}
+              </ul>
+            </motion.div>
+          )}
         </motion.div>
       )}
     </div>

@@ -14,9 +14,102 @@ import json
 import asyncio
 import os
 import re
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 from backend.rag_engine import rag_engine
 from backend.groq_client import groq_client
+from backend.firecrawl_search import firecrawl_search
+
+WEB_KEYWORDS = [
+    'news', 'latest', 'current', 'today', 'event', 'update', 'breaking', 'headline', 'happening', 'recent', 'trending', 'report', 'web', 'internet', 'online'
+]
+
+TIME_INTENT_TERMS = [
+    "latest", "current", "today", "now", "recent", "recently", "breaking",
+    "update", "updates", "this week", "this month", "new", "as of"
+]
+
+ENTITY_TERMS = [
+    "india", "indian", "jammu", "kashmir", "pakistan", "china", "usa", "russia",
+    "army", "navy", "air force", "drdo", "mod", "ministry of defence", "cds",
+    "general", "admiral", "marshal", "lt general", "missile", "defence", "defense",
+    "ssb", "nda", "cds exam", "afcat", "upsc", "poonch", "kupwara", "srinagar",
+    "loc", "border", "terror", "security", "ed", "eow"
+]
+
+STATIC_FACT_TERMS = [
+    "what is", "define", "explain", "full form", "difference between",
+    "syllabus", "formula", "meaning", "how to", "strategy", "tips for"
+]
+
+RAG_CONFIDENCE_TOP_THRESHOLD = 0.82
+RAG_CONFIDENCE_AVG_THRESHOLD = 0.75
+
+
+def has_time_intent(query: str) -> bool:
+    q = query.lower()
+    return any(term in q for term in TIME_INTENT_TERMS)
+
+
+def has_entity_intent(query: str) -> bool:
+    q = query.lower()
+    if any(term in q for term in ENTITY_TERMS):
+        return True
+    # Uppercase acronyms like CDS/DRDO/NDA are strong entity hints.
+    return bool(re.search(r"\b[A-Z]{2,}\b", query))
+
+
+def is_static_fact_query(query: str) -> bool:
+    q = query.lower().strip()
+    if has_time_intent(q):
+        return False
+    return any(term in q for term in STATIC_FACT_TERMS)
+
+
+def has_high_confidence_rag(chunks: list) -> bool:
+    if not chunks:
+        return False
+    scores = [float(getattr(c, "score", 0.0) or 0.0) for c in chunks[:3]]
+    top_score = scores[0]
+    avg_score = sum(scores) / len(scores)
+    return top_score >= RAG_CONFIDENCE_TOP_THRESHOLD and avg_score >= RAG_CONFIDENCE_AVG_THRESHOLD
+
+
+def should_use_web_search(query: str, use_live_web_search: bool, chunks: list) -> tuple[bool, str]:
+    if not use_live_web_search:
+        return False, "disabled-by-user"
+
+    time_intent = has_time_intent(query)
+    entity_intent = has_entity_intent(query)
+    if not (time_intent and entity_intent):
+        return False, "requires-time-intent-and-entity"
+
+    if is_static_fact_query(query) and has_high_confidence_rag(chunks):
+        return False, "high-confidence-rag-static-query"
+
+    return True, "enabled"
+
+
+def build_web_summary(web_results: list[dict], attempted: bool = False) -> str:
+    if not web_results:
+        if attempted:
+            return (
+                "\n\nWEB_VERIFICATION: unavailable\n"
+                "No verified web results were retrieved for this current-affairs query. "
+                "Do not present unverified latest claims as facts."
+            )
+        return ""
+    lines = []
+    for item in web_results:
+        title = item.get("title", "Untitled")
+        snippet = item.get("snippet", "")
+        link = item.get("link", "")
+        content = (item.get("content") or "").replace("\n", " ").strip()
+        content = content[:220] + ("..." if len(content) > 220 else "")
+        lines.append(f"- {title}: {snippet} ({link}) | Extract: {content}")
+    return "\n\nWEB_VERIFICATION: available\nWeb findings:\n" + "\n".join(lines)
 
 app = FastAPI(
     title="Defense GPT API",
@@ -56,6 +149,7 @@ class QueryRequest(BaseModel):
     model: str | None = None
     temperature: float = 0.3
     image_data: str | None = None
+    use_live_web_search: bool = True
 
     @field_validator("top_k")
     @classmethod
@@ -119,7 +213,7 @@ def health():
 
 @router.post("/ask", response_model=QueryResponse)
 def ask_question(request: QueryRequest):
-    """Ask a question to Defense GPT with RAG-powered context."""
+    """Ask a question to Defense GPT with RAG-powered context and web search if needed."""
     try:
         # Step 1: Retrieve relevant content from knowledge base
         context, chunks = rag_engine.build_context(
@@ -127,18 +221,31 @@ def ask_question(request: QueryRequest):
             top_k=request.top_k,
             source_filter=request.source_filter,
         )
-        
-        # Step 2: Generate response via Groq
+        logging.debug(f"RAG context: {context}")
+        web_results = []
+        logging.debug(f"Received query: {request.query}")
+        web_attempted, web_reason = should_use_web_search(
+            request.query,
+            request.use_live_web_search,
+            chunks,
+        )
+        logging.debug(f"Web fetch decision: attempted={web_attempted}, reason={web_reason}")
+        if web_attempted:
+            logging.debug("Web fetch triggered.")
+            web_results = firecrawl_search(request.query)
+            logging.debug(f"Web results: {web_results}")
+        # Step 2: Generate response via Groq, blending web results if present
+        web_summary = build_web_summary(web_results, attempted=web_attempted)
         answer = groq_client.generate_response(
             query=request.query,
-            context=context,
+            context=context + web_summary,
             exam_type=request.exam_type,
             chat_history=request.chat_history,
             model=request.model,
             temperature=request.temperature,
             image_data=request.image_data,
         )
-        
+        logging.debug(f"LLM answer: {answer}")
         # Step 3: Format sources
         sources = [
             {
@@ -149,13 +256,21 @@ def ask_question(request: QueryRequest):
             }
             for c in chunks
         ]
-        
+        if web_results:
+            import json
+            sources.append({
+                "source": "web",
+                "page": None,
+                "score": None,
+                "preview": json.dumps(web_results)
+            })
         return QueryResponse(
             answer=answer,
             sources=sources,
             model_used=request.model or groq_client.default_model
         )
     except Exception as e:
+        logging.error(f"ask_question error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -283,13 +398,33 @@ def delete_pdf(filename: str):
 @router.post("/ask/stream")
 async def ask_stream(request: QueryRequest):
     """Stream a response token-by-token using SSE."""
-    # Run the CPU-heavy/blocking embedding function in a thread
-    context, chunks = await asyncio.to_thread(
-        rag_engine.build_context,
-        query=request.query,
-        top_k=request.top_k,
-        source_filter=request.source_filter,
+    context = ""
+    chunks = []
+    try:
+        # Run the CPU-heavy/blocking embedding function in a thread
+        context, chunks = await asyncio.to_thread(
+            rag_engine.build_context,
+            query=request.query,
+            top_k=request.top_k,
+            source_filter=request.source_filter,
+        )
+    except Exception as e:
+        logging.warning("RAG retrieval failed in /ask/stream: %s", e)
+
+    web_results = []
+    web_attempted, web_reason = should_use_web_search(
+        request.query,
+        request.use_live_web_search,
+        chunks,
     )
+    logging.debug(f"Web fetch decision (/ask/stream): attempted={web_attempted}, reason={web_reason}")
+    try:
+        if web_attempted:
+            web_results = await asyncio.to_thread(firecrawl_search, request.query)
+    except Exception as e:
+        logging.warning("Web search failed in /ask/stream: %s", e)
+
+    context = (context or "") + build_web_summary(web_results, attempted=web_attempted)
 
     sources = [
         {
@@ -300,6 +435,13 @@ async def ask_stream(request: QueryRequest):
         }
         for c in chunks
     ]
+    if web_results:
+        sources.append({
+            "source": "web",
+            "page": None,
+            "score": None,
+            "preview": json.dumps(web_results)
+        })
 
     async def event_stream():
         # Send sources first

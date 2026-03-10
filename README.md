@@ -23,11 +23,11 @@ The backend requires a machine with sufficient RAM to dynamically load ML models
 2. Link this GitHub repository.
 3. Add the following to your Space **Secrets**:
    - `MONGODB_URI`
-   - `LLM_PROVIDER` (e.g. `gemini` or `groq`)
+   - `LLM_PROVIDER` (set `groq` for Groq-only mode)
    - `GROQ_API_KEY`
-   - `GEMINI_API_KEY`
-   - `GEMINI_MODEL`
    - `GROQ_MODEL`
+   - `FIRECRAWL_API_KEY` (for web search augmentation)
+   - `GEMINI_API_KEY` and `GEMINI_MODEL` (optional, only needed for image prompts)
 
 ### 2. Frontend Integration (Vercel)
 Deploy the `frontend` directory using Vercel. 

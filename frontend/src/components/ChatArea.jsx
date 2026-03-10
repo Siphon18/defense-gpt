@@ -1,6 +1,6 @@
 "use client"
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Square, ArrowDown, Sparkles, Mic, Paperclip, X, Image as ImageIcon } from 'lucide-react'
+import { Send, Square, ArrowDown, Sparkles, Mic, Paperclip, X, Image as ImageIcon, Globe } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import MessageBubble from './MessageBubble'
 import { askStream } from '@/lib/api'
@@ -23,6 +23,16 @@ export default function ChatArea({
   const recognitionRef = useRef(null)
   const fileInputRef = useRef(null)
   const [image, setImage] = useState(null)
+  const [loadingStageIndex, setLoadingStageIndex] = useState(0)
+  const [loadingElapsedSec, setLoadingElapsedSec] = useState(0)
+
+  const loadingStages = [
+    'Scanning mission brief...',
+    'Retrieving study intel...',
+    'Validating web signals...',
+    'Drafting tactical response...',
+    'Finalizing answer...'
+  ]
 
   // Handle image upload logic
   const handleImageUpload = (e) => {
@@ -131,6 +141,24 @@ export default function ChatArea({
     }
   }, [])
 
+  // Improve perceived performance with live progress messaging while loading
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingStageIndex(0)
+      setLoadingElapsedSec(0)
+      return
+    }
+
+    const startedAt = Date.now()
+    const timer = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000)
+      setLoadingElapsedSec(elapsed)
+      setLoadingStageIndex(Math.min(Math.floor(elapsed / 2), loadingStages.length - 1))
+    }, 250)
+
+    return () => clearInterval(timer)
+  }, [isLoading])
+
   // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
@@ -218,6 +246,7 @@ export default function ChatArea({
       settings.temperature,
       settings.topK,
       settings.sourceFilter,
+      settings.useLiveWebSearch,
       chatHistory,
       activeImage,
       {
@@ -355,6 +384,23 @@ export default function ChatArea({
             <Mic size={16} />
           </motion.button>
 
+          {/* Live web search toggle */}
+          <motion.button
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={() => settings.setUseLiveWebSearch?.(!settings.useLiveWebSearch)}
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all duration-300 shrink-0 border ${settings.useLiveWebSearch
+              ? 'text-[#00ff41]/85 bg-[#00ff41]/10 border-[#00ff41]/30'
+              : 'text-gray-500 bg-transparent border-[#00ff41]/10 hover:border-[#00ff41]/25'
+              }`}
+            title={settings.useLiveWebSearch ? "Live web search: ON" : "Live web search: OFF"}
+          >
+            <Globe size={15} />
+            <span className="text-[10px] font-mono tracking-wide uppercase">
+              Web {settings.useLiveWebSearch ? 'ON' : 'OFF'}
+            </span>
+          </motion.button>
+
           <textarea
             ref={textareaRef}
             value={input}
@@ -418,15 +464,35 @@ export default function ChatArea({
             animate={{ opacity: 1, y: 0 }}
             className="max-w-3xl mx-auto px-4 py-5"
           >
-            <div className="flex items-center gap-3 ml-11">
-              <div className="flex gap-2">
-                <span className="typing-radar-dot" />
-                <span className="typing-radar-dot" />
-                <span className="typing-radar-dot" />
+            <div className="ml-11 glass-card border border-[#00ff41]/15 rounded-xl px-4 py-3 max-w-md">
+              <div className="flex items-center gap-3">
+                <div className="flex gap-2">
+                  <span className="typing-radar-dot" />
+                  <span className="typing-radar-dot" />
+                  <span className="typing-radar-dot" />
+                </div>
+                <span className="text-[10px] text-[#00ff41]/40 font-mono uppercase tracking-wider">
+                  Processing intel...
+                </span>
               </div>
-              <span className="text-[10px] text-[#00ff41]/40 font-mono uppercase tracking-wider">
-                Processing intel...
-              </span>
+
+              <div className="mt-2 text-[11px] text-gray-400 font-mono">
+                {loadingStages[loadingStageIndex]}
+              </div>
+
+              <div className="mt-2 h-1.5 w-full bg-[#00ff41]/10 rounded-full overflow-hidden">
+                <motion.div
+                  key={loadingStageIndex}
+                  initial={{ width: '12%' }}
+                  animate={{ width: `${Math.min(22 + loadingStageIndex * 18, 95)}%` }}
+                  transition={{ duration: 0.7, ease: 'easeOut' }}
+                  className="h-full bg-[#00ff41]/55"
+                />
+              </div>
+
+              <div className="mt-2 text-[10px] text-[#00ff41]/35 font-mono uppercase tracking-wider">
+                Elapsed: {loadingElapsedSec}s
+              </div>
             </div>
           </motion.div>
         )}

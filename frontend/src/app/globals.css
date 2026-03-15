@@ -326,8 +326,8 @@
    ══════════════════════════════════════════════════════════ */
 .prose-chat {
   font-size: 0.9375rem;
-  line-height: 1.75;
-  color: #d1d5db;
+  line-height: 1.85;
+  color: #e5e7eb;
   overflow-wrap: break-word;
   word-break: break-word;
 }

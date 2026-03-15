@@ -102,6 +102,46 @@ export default function QuizPage() {
         }, 0)
     }
 
+    const computeWeakAreas = () => {
+        if (!quiz) return []
+        const buckets = {
+            Mathematics: ['math', 'algebra', 'trigonometry', 'geometry', 'equation', 'probability'],
+            History: ['history', 'battle', 'freedom', 'movement', 'empire'],
+            Geography: ['geography', 'river', 'mountain', 'climate', 'map'],
+            Science: ['science', 'physics', 'chemistry', 'biology', 'atom'],
+            CurrentAffairs: ['current', 'affair', 'defense', 'minister', 'operation', 'summit'],
+            English: ['english', 'grammar', 'vocabulary', 'synonym', 'antonym'],
+            Polity: ['constitution', 'parliament', 'article', 'polity', 'amendment'],
+        }
+
+        const missed = quiz.questions.filter((q, idx) => answers[idx] !== q.correct_answer)
+        const counts = {}
+
+        missed.forEach((q) => {
+            const text = (q.text || '').toLowerCase()
+            let matched = false
+            Object.entries(buckets).forEach(([name, keywords]) => {
+                if (keywords.some(k => text.includes(k))) {
+                    counts[name] = (counts[name] || 0) + 1
+                    matched = true
+                }
+            })
+            if (!matched) counts.Mixed = (counts.Mixed || 0) + 1
+        })
+
+        return Object.entries(counts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([name, count]) => ({ name, count }))
+    }
+
+    const weakAreas = computeWeakAreas()
+    const nextMissions = [
+        weakAreas[0] ? `Revise ${weakAreas[0].name} fundamentals and formulas` : `Attempt a harder ${config.topic} drill`,
+        `Run a 10-question ${config.examType} mixed-topic mission`,
+        `Return to Command Terminal and ask for strategy on your weak areas`,
+    ]
+
     return (
         <div className="flex h-screen bg-[#050806] text-slate-100 overflow-hidden font-sans relative">
             <div className="absolute inset-0 scan-line pointer-events-none opacity-30 z-50 overflow-hidden h-full w-full" />
@@ -358,6 +398,38 @@ export default function QuizPage() {
                                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Combat Zone</p>
                                     <p className="text-xl md:text-2xl font-black text-white uppercase truncate italic">{config.topic}</p>
                                     <div className="text-[10px] text-slate-500 font-bold tracking-widest">{config.examType} DIVISION</div>
+                                </div>
+                            </div>
+
+                            <div className="w-full glass p-6 md:p-7 rounded-2xl border-[#00ff41]/15 mb-8">
+                                <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                                    <h3 className="text-base md:text-lg font-black text-white uppercase tracking-wider">Weak-Area Analytics</h3>
+                                    <span className="text-[10px] uppercase tracking-[0.2em] text-[#00ff41]/60 font-mono">Auto Debrief</span>
+                                </div>
+
+                                {weakAreas.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+                                        {weakAreas.map((area) => (
+                                            <div key={area.name} className="rounded-xl border border-red-400/20 bg-red-500/5 p-4">
+                                                <p className="text-xs uppercase tracking-widest text-red-300/70 font-mono">{area.name}</p>
+                                                <p className="text-2xl font-black text-red-300 mt-1">{area.count}</p>
+                                                <p className="text-[10px] uppercase tracking-[0.14em] text-red-200/60">Incorrect Answers</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-[#b6ffc9] mb-5">Excellent run. No weak area clusters detected in this mission.</p>
+                                )}
+
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-[0.2em] text-[#00ff41]/55 font-mono mb-2">Next 3 Missions</p>
+                                    <div className="space-y-2">
+                                        {nextMissions.map((mission, i) => (
+                                            <div key={i} className="px-3 py-2 rounded-lg bg-[#00ff41]/5 border border-[#00ff41]/15 text-sm text-gray-200">
+                                                {i + 1}. {mission}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 

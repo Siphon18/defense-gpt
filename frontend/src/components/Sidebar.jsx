@@ -21,7 +21,7 @@ const EXAMS = ['General', 'NDA', 'CDS', 'AFCAT', 'Indian Navy', 'CAPF', 'SSB']
 
 export default function Sidebar({
   open, onToggle, chats = [], activeChatId, onSelectChat, onNewChat, onDeleteChat,
-  examType, setExamType, session, onSignOut,
+  examType, setExamType, session, onSignOut, saveStatus = 'idle',
 }) {
   const [isMobile, setIsMobile] = useState(false)
 
@@ -116,6 +116,15 @@ export default function Sidebar({
                 </button>
               </div>
 
+              <div className="px-5 py-2 border-b border-[#00ff41]/10">
+                <p className="text-[10px] font-mono uppercase tracking-[0.18em] flex items-center gap-2">
+                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${saveStatus === 'saving' ? 'bg-yellow-400' : saveStatus === 'saved' ? 'bg-[#00ff41]' : saveStatus === 'error' ? 'bg-red-400' : 'bg-slate-600'}`} />
+                  <span className="text-[#00ff41]/45">
+                    {saveStatus === 'saving' ? 'Saving chat...' : saveStatus === 'saved' ? 'Saved' : saveStatus === 'error' ? 'Save issue' : 'Sync idle'}
+                  </span>
+                </p>
+              </div>
+
               {/* New Mission / Quiz */}
               <div className="px-4 pt-4 space-y-3">
                 <motion.button
@@ -179,7 +188,7 @@ export default function Sidebar({
                     <motion.div
                       key={chat.id}
                       whileHover={{ x: 4 }}
-                      className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-300 border ${activeChatId === chat.id
+                      className={`group flex items-center gap-3 px-3 py-3.5 rounded-xl cursor-pointer transition-all duration-300 border ${activeChatId === chat.id
                         ? 'bg-[#00ff41]/10 text-[#00ff41] border-[#00ff41]/20 shadow-[inset_0_0_15px_rgba(0,255,65,0.05)]'
                         : 'text-slate-500 hover:bg-[#00ff41]/5 hover:text-white border-transparent'
                         }`}

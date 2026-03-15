@@ -22,10 +22,62 @@ export default function ChatPage() {
   const [models, setModels] = useState([])
   const [defaultModel, setDefaultModel] = useState(null)
   const [useLiveWebSearch, setUseLiveWebSearch] = useState(true)
+  const [saveStatus, setSaveStatus] = useState('idle')
+  const saveStatusTimerRef = useRef(null)
+  const [showTour, setShowTour] = useState(false)
+  const [tourStep, setTourStep] = useState(0)
+
+  const tourSteps = [
+    {
+      title: 'Choose Target Exam',
+      body: 'Use the sidebar exam chips to switch coaching style for NDA, CDS, AFCAT, and more.',
+    },
+    {
+      title: 'Toggle Live Web Search',
+      body: 'Use the Web ON/OFF control in the composer to include current web verification when needed.',
+    },
+    {
+      title: 'Run Tactical Evaluations',
+      body: 'Open Tactical Evaluation from the sidebar to generate quizzes and track your weak areas.',
+    },
+  ]
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/login')
   }, [status, router])
+
+  useEffect(() => {
+    if (status !== 'authenticated') return
+    if (typeof window === 'undefined') return
+    const done = localStorage.getItem('defense-gpt-tour-v1')
+    if (!done) setShowTour(true)
+  }, [status])
+
+  useEffect(() => {
+    return () => {
+      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current)
+    }
+  }, [])
+
+  const markSaveStatus = useCallback((statusValue) => {
+    setSaveStatus(statusValue)
+    if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current)
+    if (statusValue === 'saved') {
+      saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 1200)
+    }
+  }, [])
+
+  const persistChat = useCallback(async (chatData) => {
+    markSaveStatus('saving')
+    try {
+      const saved = await saveChat(chatData)
+      markSaveStatus('saved')
+      return saved
+    } catch {
+      markSaveStatus('error')
+      return null
+    }
+  }, [markSaveStatus])
 
   useEffect(() => {
     getChats().then(loaded => setChats(loaded))
@@ -68,13 +120,13 @@ export default function ChatPage() {
       return next
     })
     if (chatToSave) {
-      saveChat(chatToSave) // fire-and-forget async save
+        persistChat(chatToSave) // fire-and-forget async save
     }
-  }, [])
+  }, [persistChat])
 
   const handleNewChat = async () => {
     const chat = createNewChat(examType)
-    const saved = await saveChat(chat)
+    const saved = await persistChat(chat)
     const finalChat = saved || chat
     if (!finalChat.id) finalChat.id = Date.now().toString(36) + Math.random().toString(36).slice(2)
     setChats(prev => [finalChat, ...prev])
@@ -102,7 +154,7 @@ export default function ChatPage() {
     const chat = createNewChat(examType)
     chat.messages = [{ role: 'user', content: prompt }]
     chat.title = prompt.slice(0, 50)
-    const saved = await saveChat(chat)
+    const saved = await persistChat(chat)
     const finalChat = saved || chat
     if (!finalChat.id) finalChat.id = Date.now().toString(36) + Math.random().toString(36).slice(2)
     setChats(prev => [finalChat, ...prev])
@@ -114,7 +166,7 @@ export default function ChatPage() {
     const chat = createNewChat(examType)
     chat.messages = [{ role: 'user', content: query, image }]
     chat.title = query.slice(0, 50)
-    const saved = await saveChat(chat)
+    const saved = await persistChat(chat)
     const finalChat = saved || chat
     if (!finalChat.id) finalChat.id = Date.now().toString(36) + Math.random().toString(36).slice(2)
     setChats(prev => [finalChat, ...prev])
@@ -158,6 +210,7 @@ export default function ChatPage() {
         setExamType={setExamType}
         session={session}
         onSignOut={() => signOut({ callbackUrl: '/' })}
+        saveStatus={saveStatus}
       />
 
       <main className="flex-1 flex flex-col min-w-0 min-h-0">
@@ -174,6 +227,53 @@ export default function ChatPage() {
           onFirstMessage={handleFirstMessage}
         />
       </main>
+
+      {showTour && (
+        <div className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm flex items-center justify-center px-4">
+          <div className="glass-card border border-[#00ff41]/20 rounded-2xl max-w-md w-full p-6">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[#00ff41]/50 font-mono mb-2">
+              Onboarding {tourStep + 1}/{tourSteps.length}
+            </p>
+            <h2 className="text-xl font-bold text-white mb-2">{tourSteps[tourStep].title}</h2>
+            <p className="text-sm text-gray-300 leading-relaxed mb-6">{tourSteps[tourStep].body}</p>
+
+            <div className="flex items-center justify-between gap-2">
+              <button
+                onClick={() => {
+                  if (typeof window !== 'undefined') localStorage.setItem('defense-gpt-tour-v1', 'done')
+                  setShowTour(false)
+                }}
+                className="text-xs text-gray-400 hover:text-white transition-colors"
+              >
+                Skip tour
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setTourStep(s => Math.max(0, s - 1))}
+                  disabled={tourStep === 0}
+                  className="px-3 py-2 text-xs rounded-lg border border-[#00ff41]/20 text-gray-300 disabled:opacity-40"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => {
+                    if (tourStep < tourSteps.length - 1) {
+                      setTourStep(s => s + 1)
+                      return
+                    }
+                    if (typeof window !== 'undefined') localStorage.setItem('defense-gpt-tour-v1', 'done')
+                    setShowTour(false)
+                  }}
+                  className="px-3 py-2 text-xs rounded-lg bg-[#00ff41] text-black font-semibold"
+                >
+                  {tourStep < tourSteps.length - 1 ? 'Next' : 'Done'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

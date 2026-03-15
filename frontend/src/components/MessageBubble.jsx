@@ -1,17 +1,51 @@
 "use client"
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Shield, Copy, Check, ChevronDown, ChevronUp, FileText } from 'lucide-react'
+import { Shield, Copy, Check, ChevronDown, ChevronUp, FileText, Pin, RotateCcw, ListCollapse, ClipboardList } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 function SourcesPanel({ sources }) {
   const [open, setOpen] = useState(false)
+  const [pinnedId, setPinnedId] = useState(null)
   if (!sources || sources.length === 0) return null
 
-  // Separate web sources
-  const webSources = sources.filter(s => s.source === 'web')
-  const docSources = sources.filter(s => s.source !== 'web')
+  const normalized = []
+  sources.forEach((s, sourceIdx) => {
+    if (s.source === 'web') {
+      try {
+        const items = JSON.parse(s.preview || '[]')
+        items.forEach((item, itemIdx) => {
+          normalized.push({
+            id: `web-${sourceIdx}-${itemIdx}`,
+            title: item.title || 'Web source',
+            text: item.snippet || item.content || '',
+            link: item.link || '',
+            type: 'web',
+          })
+        })
+      } catch {
+        normalized.push({
+          id: `web-${sourceIdx}`,
+          title: 'Web source',
+          text: s.preview || '',
+          link: '',
+          type: 'web',
+        })
+      }
+      return
+    }
+
+    normalized.push({
+      id: `doc-${sourceIdx}`,
+      title: `${s.source}${s.page ? ` (p.${s.page})` : ''}`,
+      text: s.preview || s.text || '',
+      link: '',
+      type: 'doc',
+    })
+  })
+
+  const pinned = normalized.find(item => item.id === pinnedId) || null
 
   return (
     <div className="mt-3">
@@ -23,63 +57,89 @@ function SourcesPanel({ sources }) {
         {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
         {sources.length} intel source{sources.length !== 1 ? 's' : ''}
       </button>
-      {open && (
+        {open && (
         <motion.div
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
           exit={{ opacity: 0, height: 0 }}
           className="mt-2 space-y-1.5"
         >
-          {docSources.map((s, i) => (
+          {pinned && (
             <motion.div
-              key={i}
+              key={`pinned-${pinned.id}`}
               initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className="text-xs glass-card rounded-lg px-3 py-2 border-l-2 border-[#00ff41]/30"
+              className="text-xs glass-card rounded-lg px-3 py-2 border-l-2 border-yellow-400/60 sticky top-2 z-10"
             >
-              <span className="text-[#00ff41]/70 font-medium font-mono">{s.source}</span>
-              {(s.preview || s.text) && (
-                <p className="text-gray-600 mt-1 line-clamp-2">{s.preview || s.text}</p>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-yellow-300 font-medium font-mono flex items-center gap-1">
+                  <Pin size={11} />
+                  Pinned: {pinned.title}
+                </span>
+                <button onClick={() => setPinnedId(null)} className="text-[11px] text-yellow-200/80 hover:text-yellow-100">Unpin</button>
+              </div>
+              {pinned.text && (
+                <p className="text-gray-300 mt-1">{pinned.text}</p>
+              )}
+              {pinned.link && (
+                <a href={pinned.link} target="_blank" rel="noopener noreferrer" className="text-blue-300 underline mt-1 inline-block">Open source</a>
+              )}
+            </motion.div>
+          )}
+
+          {normalized.map((item, i) => (
+            <motion.div
+              key={item.id}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.04 }}
+              className={`text-xs glass-card rounded-lg px-3 py-2 border-l-2 ${item.type === 'web' ? 'border-blue-400/40 bg-blue-50/5' : 'border-[#00ff41]/30'}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <span className={`font-medium font-mono ${item.type === 'web' ? 'text-blue-300' : 'text-[#00ff41]/70'}`}>{item.title}</span>
+                <button
+                  onClick={() => setPinnedId(item.id)}
+                  className="text-gray-400 hover:text-yellow-300 transition-colors"
+                  title="Pin source"
+                >
+                  <Pin size={11} />
+                </button>
+              </div>
+              {item.text && (
+                <p className="text-gray-300 mt-1 line-clamp-2">{item.text}</p>
+              )}
+              {item.link && (
+                <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-blue-300 underline mt-1 inline-block">
+                  Open source
+                </a>
               )}
             </motion.div>
           ))}
-          {webSources.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: docSources.length * 0.05 }}
-              className="text-xs glass-card rounded-lg px-3 py-2 border-l-2 border-blue-400/30 bg-blue-50/10"
-            >
-              <span className="text-blue-400 font-medium font-mono">Web Findings</span>
-              <ul className="mt-1 text-gray-600 list-disc pl-4">
-                {webSources.map((w, idx) => {
-                  try {
-                    const items = JSON.parse(w.preview)
-                    return items.map((item, j) => (
-                      <li key={j} className="mb-1">
-                        <span className="font-bold">{item.title}</span>: {item.snippet}
-                        {item.link && (
-                          <a href={item.link} target="_blank" rel="noopener noreferrer" className="ml-1 text-blue-400 underline">[source]</a>
-                        )}
-                      </li>
-                    ))
-                  } catch {
-                    return <li key={idx}>{w.preview}</li>
-                  }
-                })}
-              </ul>
-            </motion.div>
-          )}
         </motion.div>
       )}
     </div>
   )
 }
 
-export default function MessageBubble({ message, isStreaming }) {
+export default function MessageBubble({
+  message,
+  isStreaming,
+  messageIndex,
+  allMessages = [],
+  onRegenerate,
+  onSummarize,
+  onCreateQuiz,
+}) {
   const [copied, setCopied] = useState(false)
+  const [toolsOpen, setToolsOpen] = useState(false)
   const isUser = message.role === 'user'
+  let previousUserPrompt = ''
+  for (let i = messageIndex - 1; i >= 0; i -= 1) {
+    if (allMessages[i]?.role === 'user') {
+      previousUserPrompt = allMessages[i].content || ''
+      break
+    }
+  }
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content)
@@ -94,7 +154,7 @@ export default function MessageBubble({ message, isStreaming }) {
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="py-5"
     >
-      <div className="max-w-3xl mx-auto px-2 sm:px-4">
+      <div className="max-w-5xl mx-auto px-2 sm:px-4">
         <div className="flex gap-2 sm:gap-3">
           {/* Avatar */}
           <motion.div
@@ -124,13 +184,13 @@ export default function MessageBubble({ message, isStreaming }) {
             </div>
 
             {isUser ? (
-              <div className="glass-card rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 border-[#1a2a1e]/50">
-                <p className="text-sm sm:text-[15px] text-gray-200 leading-relaxed whitespace-pre-wrap">{message.content}</p>
+              <div className="glass-card rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 border-[#1a2a1e]/50 max-w-[72ch]">
+                <p className="text-sm sm:text-[15px] text-gray-100 leading-relaxed whitespace-pre-wrap">{message.content}</p>
               </div>
             ) : (
               <motion.div
                 className={`glass-card rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 border-l-2 border-[#00ff41]/25 ${isStreaming ? 'animate-border-glow' : ''
-                  }`}
+                  } max-w-[80ch]`}
                 whileHover={{ boxShadow: '0 0 25px rgba(0,255,65,0.08)' }}
               >
                 <div className="prose-chat">
@@ -150,7 +210,7 @@ export default function MessageBubble({ message, isStreaming }) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
-                className="mt-2 flex items-center gap-2"
+                className="mt-2 flex items-center gap-2 flex-wrap"
               >
                 <button
                   onClick={handleCopy}
@@ -159,7 +219,41 @@ export default function MessageBubble({ message, isStreaming }) {
                   {copied ? <Check size={12} className="text-[#00ff41]" /> : <Copy size={12} />}
                   {copied ? 'Copied' : 'Copy'}
                 </button>
+                <button
+                  onClick={() => setToolsOpen(v => !v)}
+                  className="flex items-center gap-1 text-xs text-gray-600 hover:text-[#00ff41]/70 transition-colors duration-300"
+                >
+                  <ChevronDown size={12} className={toolsOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                  Tools
+                </button>
               </motion.div>
+            )}
+
+            {!isUser && message.content && toolsOpen && (
+              <div className="mt-2 glass-card rounded-lg px-3 py-2 border border-[#00ff41]/15 flex items-center gap-2 flex-wrap text-xs">
+                <button
+                  onClick={() => onRegenerate?.(previousUserPrompt)}
+                  disabled={!previousUserPrompt}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-[#00ff41]/20 text-gray-300 hover:text-[#00ff41] disabled:opacity-40"
+                >
+                  <RotateCcw size={12} />
+                  Regenerate
+                </button>
+                <button
+                  onClick={() => onSummarize?.(message.content)}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-[#00ff41]/20 text-gray-300 hover:text-[#00ff41]"
+                >
+                  <ListCollapse size={12} />
+                  Summarize
+                </button>
+                <button
+                  onClick={() => onCreateQuiz?.(message.content)}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-[#00ff41]/20 text-gray-300 hover:text-[#00ff41]"
+                >
+                  <ClipboardList size={12} />
+                  Create quiz
+                </button>
+              </div>
             )}
 
             {/* Sources */}

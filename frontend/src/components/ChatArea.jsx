@@ -1,6 +1,6 @@
 "use client"
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Square, ArrowDown, Sparkles, Mic, Paperclip, X, Image as ImageIcon, Globe } from 'lucide-react'
+import { Send, Square, ArrowDown, Sparkles, Mic, Paperclip, X, Image as ImageIcon, Globe, Keyboard } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import MessageBubble from './MessageBubble'
 import { askStream } from '@/lib/api'
@@ -25,6 +25,10 @@ export default function ChatArea({
   const [image, setImage] = useState(null)
   const [loadingStageIndex, setLoadingStageIndex] = useState(0)
   const [loadingElapsedSec, setLoadingElapsedSec] = useState(0)
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const [toasts, setToasts] = useState([])
+  const [lastLatencyMs, setLastLatencyMs] = useState(null)
+  const requestStartedAtRef = useRef(0)
 
   const loadingStages = [
     'Scanning mission brief...',
@@ -34,13 +38,21 @@ export default function ChatArea({
     'Finalizing answer...'
   ]
 
+  const pushToast = useCallback((message, type = 'info') => {
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2)
+    setToasts(prev => [...prev, { id, message, type }])
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id))
+    }, 3000)
+  }, [])
+
   // Handle image upload logic
   const handleImageUpload = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
 
     if (file.size > 5 * 1024 * 1024) {
-      alert("Intel file too large. Maximum size is 5MB.")
+      pushToast('Intel file too large. Maximum size is 5MB.', 'error')
       return
     }
 
@@ -91,7 +103,7 @@ export default function ChatArea({
 
   const toggleListening = () => {
     if (!recognitionRef.current) {
-      alert("Voice recognition is not supported in this browser. Please use Chrome or Edge.")
+      pushToast('Voice recognition is not supported in this browser.', 'error')
       return
     }
 
@@ -222,6 +234,7 @@ export default function ChatArea({
     }
 
     setIsLoading(true)
+    requestStartedAtRef.current = Date.now()
     setSuggestions([])
     streamDoneRef.current = false
     tokenQueueRef.current = []
@@ -266,6 +279,9 @@ export default function ChatArea({
         },
         onSuggestions: (s) => setSuggestions(s),
         onDone: () => {
+          if (requestStartedAtRef.current) {
+            setLastLatencyMs(Date.now() - requestStartedAtRef.current)
+          }
           streamDoneRef.current = true
           if (tokenQueueRef.current.length === 0) {
             if (drainTimerRef.current) {
@@ -276,6 +292,9 @@ export default function ChatArea({
           }
         },
         onError: (err) => {
+          if (requestStartedAtRef.current) {
+            setLastLatencyMs(Date.now() - requestStartedAtRef.current)
+          }
           streamDoneRef.current = true
           if (drainTimerRef.current) {
             clearInterval(drainTimerRef.current)
@@ -312,19 +331,87 @@ export default function ChatArea({
     if (remaining) {
       appendToken(remaining)
     }
+    if (requestStartedAtRef.current) {
+      setLastLatencyMs(Date.now() - requestStartedAtRef.current)
+    }
     setIsLoading(false)
   }
 
+  const handleRegenerate = (previousPrompt) => {
+    if (!previousPrompt || isLoading) return
+    setMessages(prev => [...prev, { role: 'user', content: previousPrompt }])
+    handleSend(previousPrompt)
+  }
+
+  const handleSummarize = (assistantContent) => {
+    if (!assistantContent || isLoading) return
+    const prompt = `Summarize your previous answer in 5 crisp bullet points with key terms bolded.\n\nAnswer:\n${assistantContent.slice(0, 3000)}`
+    setMessages(prev => [...prev, { role: 'user', content: 'Summarize that answer in 5 key bullets.' }])
+    handleSend(prompt)
+  }
+
+  const handleCreateQuizFromAnswer = (assistantContent) => {
+    if (!assistantContent || isLoading) return
+    const prompt = `Create a 5-question MCQ quiz from your previous answer. Include 4 options per question, the correct option, and a short explanation.\n\nAnswer:\n${assistantContent.slice(0, 3000)}`
+    setMessages(prev => [...prev, { role: 'user', content: 'Create a 5-question quiz from that answer.' }])
+    handleSend(prompt)
+  }
+
   const handleKeyDown = (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault()
+      handleSend()
+      return
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
     }
   }
 
+  useEffect(() => {
+    const onWindowKeyDown = (e) => {
+      const target = e.target
+      const inEditable = target instanceof HTMLElement && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      )
+
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault()
+        setShowShortcuts(v => !v)
+        return
+      }
+
+      if (e.key === '/' && !inEditable && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault()
+        textareaRef.current?.focus()
+        return
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault()
+        handleSend()
+        return
+      }
+
+      if (e.key === 'Escape' && isLoading) {
+        e.preventDefault()
+        handleStop()
+      }
+    }
+
+    window.addEventListener('keydown', onWindowKeyDown)
+    return () => window.removeEventListener('keydown', onWindowKeyDown)
+  }, [handleSend, handleStop, isLoading])
+
   /* ─── Input Bar Component ─── */
   const inputBarElement = (
-    <div className="border-t border-[#00ff41]/10 bg-[#0a0f0a]/90 backdrop-blur-md px-2 sm:px-4 py-3">
+    <div
+      className="border-t border-[#00ff41]/10 bg-[#0a0f0a]/90 backdrop-blur-md px-2 sm:px-4 pt-3"
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}
+    >
       <div className="max-w-3xl mx-auto w-full">
 
         {/* Image Preview Chip */}
@@ -401,6 +488,16 @@ export default function ChatArea({
             </span>
           </motion.button>
 
+          <motion.button
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={() => setShowShortcuts(v => !v)}
+            className="p-1.5 rounded-lg text-gray-500 hover:text-[#00ff41]/70 hover:bg-[#00ff41]/5 border border-[#00ff41]/10 transition-all duration-300 shrink-0"
+            title="Keyboard shortcuts"
+          >
+            <Keyboard size={15} />
+          </motion.button>
+
           <textarea
             ref={textareaRef}
             value={input}
@@ -445,6 +542,23 @@ export default function ChatArea({
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
+      <div className="sticky top-0 z-20 border-b border-[#00ff41]/10 bg-[#0a0f0a]/85 backdrop-blur-md">
+        <div className="max-w-5xl mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-2 flex-wrap">
+          <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60">
+            Model: <span className="text-[#00ff41]/90">{settings.model || 'auto'}</span>
+          </div>
+          <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60">
+            Exam: <span className="text-[#00ff41]/90">{settings.examType || 'General'}</span>
+          </div>
+          <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60">
+            Web: <span className={settings.useLiveWebSearch ? 'text-[#00ff41]' : 'text-gray-400'}>{settings.useLiveWebSearch ? 'On' : 'Off'}</span>
+          </div>
+          <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60">
+            Last latency: <span className="text-[#00ff41]/90">{lastLatencyMs != null ? `${(lastLatencyMs / 1000).toFixed(1)}s` : '--'}</span>
+          </div>
+        </div>
+      </div>
+
       {/* Messages */}
       <div
         ref={scrollRef}
@@ -453,7 +567,16 @@ export default function ChatArea({
       >
         <div className="divide-y divide-[#00ff41]/5">
           {messages.map((msg, i) => (
-            <MessageBubble key={i} message={msg} isStreaming={isLoading && i === messages.length - 1 && msg.role === 'assistant'} />
+            <MessageBubble
+              key={i}
+              message={msg}
+              messageIndex={i}
+              allMessages={messages}
+              isStreaming={isLoading && i === messages.length - 1 && msg.role === 'assistant'}
+              onRegenerate={handleRegenerate}
+              onSummarize={handleSummarize}
+              onCreateQuiz={handleCreateQuizFromAnswer}
+            />
           ))}
         </div>
 
@@ -558,6 +681,59 @@ export default function ChatArea({
 
       {/* Input */}
       {inputBarElement}
+
+      <div className="fixed top-20 right-4 z-50 space-y-2">
+        <AnimatePresence>
+          {toasts.map(t => (
+            <motion.div
+              key={t.id}
+              initial={{ opacity: 0, x: 24 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 24 }}
+              className={`px-3 py-2 rounded-lg text-xs font-mono border ${t.type === 'error'
+                ? 'bg-red-500/15 border-red-500/30 text-red-300'
+                : 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#b6ffc9]'
+                }`}
+            >
+              {t.message}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      <AnimatePresence>
+        {showShortcuts && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center px-4"
+            onClick={() => setShowShortcuts(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass-card border border-[#00ff41]/25 rounded-2xl p-5 w-full max-w-sm"
+            >
+              <h3 className="text-sm font-bold text-white mb-3">Keyboard Shortcuts</h3>
+              <div className="space-y-2 text-xs text-gray-300">
+                <p><span className="text-[#00ff41] font-mono">/</span> Focus prompt input</p>
+                <p><span className="text-[#00ff41] font-mono">Ctrl/Cmd + Enter</span> Send prompt</p>
+                <p><span className="text-[#00ff41] font-mono">Esc</span> Stop streaming</p>
+                <p><span className="text-[#00ff41] font-mono">?</span> Toggle this panel</p>
+              </div>
+              <button
+                onClick={() => setShowShortcuts(false)}
+                className="mt-4 px-3 py-2 text-xs rounded-lg bg-[#00ff41] text-black font-semibold"
+              >
+                Close
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

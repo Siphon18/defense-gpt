@@ -122,6 +122,7 @@ def _human_web_reason(reason: str) -> str:
         "google_grounding_disabled": "google grounding is disabled on the server",
         "missing_gemini_api_key": "gemini key is missing for grounding",
         "google_grounding_error": "google grounding request failed",
+        "google_grounding_quota_exceeded": "gemini grounding quota/rate limit exceeded",
         "grounding_no_results": "google grounding returned no usable results",
         "missing_allowed_domains": "no approved domains are configured",
     }

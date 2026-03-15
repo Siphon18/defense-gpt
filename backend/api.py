@@ -23,6 +23,7 @@ logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
 from backend.rag_engine import rag_engine
 from backend.groq_client import groq_client
 from backend.firecrawl_search import firecrawl_search
+from backend.firecrawl_search import _allowed_domains
 
 WEB_KEYWORDS = [
     'news', 'latest', 'current', 'today', 'event', 'update', 'breaking', 'headline', 'happening', 'recent', 'trending', 'report', 'web', 'internet', 'online'
@@ -44,6 +45,11 @@ ENTITY_TERMS = [
 STATIC_FACT_TERMS = [
     "what is", "define", "explain", "full form", "difference between",
     "syllabus", "formula", "meaning", "how to", "strategy", "tips for"
+]
+
+DEFENSE_EXAM_WEB_TERMS = [
+    "nda", "cds", "afcat", "ssb", "upsc", "notification", "eligibility",
+    "syllabus", "cutoff", "exam date", "admit card", "vacancy", "selection process"
 ]
 
 RAG_CONFIDENCE_TOP_THRESHOLD = 0.82
@@ -79,13 +85,20 @@ def has_high_confidence_rag(chunks: list) -> bool:
     return top_score >= RAG_CONFIDENCE_TOP_THRESHOLD and avg_score >= RAG_CONFIDENCE_AVG_THRESHOLD
 
 
-def should_use_web_search(query: str, use_live_web_search: bool, chunks: list) -> tuple[bool, str]:
+def should_use_web_search(query: str, use_live_web_search: bool, chunks: list, context_mode: str = "hybrid") -> tuple[bool, str]:
     if not use_live_web_search:
         return False, "disabled-by-user"
 
+    if context_mode == "pdf_only":
+        return False, "disabled-by-context-mode"
+
+    if context_mode == "web_only":
+        return True, "forced-web-only-mode"
+
     time_intent = has_time_intent(query)
     entity_intent = has_entity_intent(query)
-    if not (time_intent and entity_intent):
+    exam_web_intent = any(t in query.lower() for t in DEFENSE_EXAM_WEB_TERMS)
+    if not ((time_intent and entity_intent) or exam_web_intent):
         return False, "requires-time-intent-and-entity"
 
     if is_static_fact_query(query) and has_high_confidence_rag(chunks):
@@ -162,6 +175,7 @@ class QueryRequest(BaseModel):
     temperature: float = 0.3
     image_data: str | None = None
     use_live_web_search: bool = True
+    context_mode: str = "hybrid"  # hybrid | pdf_only | web_only
 
     @field_validator("top_k")
     @classmethod
@@ -172,6 +186,14 @@ class QueryRequest(BaseModel):
     @classmethod
     def clamp_temperature(cls, v):
         return max(0.0, min(v, 1.0))
+
+    @field_validator("context_mode")
+    @classmethod
+    def validate_context_mode(cls, v):
+        allowed = {"hybrid", "pdf_only", "web_only"}
+        if v not in allowed:
+            return "hybrid"
+        return v
 
 
 class QueryResponse(BaseModel):
@@ -228,11 +250,14 @@ def ask_question(request: QueryRequest):
     """Ask a question to Defense GPT with RAG-powered context and web search if needed."""
     try:
         # Step 1: Retrieve relevant content from knowledge base
-        context, chunks = rag_engine.build_context(
-            query=request.query,
-            top_k=request.top_k,
-            source_filter=request.source_filter,
-        )
+        context = ""
+        chunks = []
+        if request.context_mode != "web_only":
+            context, chunks = rag_engine.build_context(
+                query=request.query,
+                top_k=request.top_k,
+                source_filter=request.source_filter,
+            )
         logging.debug("Retrieved %d RAG chunks for query.", len(chunks))
         web_results = []
         logging.debug(f"Received query: {request.query}")
@@ -240,6 +265,7 @@ def ask_question(request: QueryRequest):
             request.query,
             request.use_live_web_search,
             chunks,
+            request.context_mode,
         )
         logging.debug(f"Web fetch decision: attempted={web_attempted}, reason={web_reason}")
         if web_attempted:
@@ -443,22 +469,24 @@ async def ask_stream(request: QueryRequest):
     """Stream a response token-by-token using SSE."""
     context = ""
     chunks = []
-    try:
-        # Run the CPU-heavy/blocking embedding function in a thread
-        context, chunks = await asyncio.to_thread(
-            rag_engine.build_context,
-            query=request.query,
-            top_k=request.top_k,
-            source_filter=request.source_filter,
-        )
-    except Exception as e:
-        logging.warning("RAG retrieval failed in /ask/stream: %s", e)
+    if request.context_mode != "web_only":
+        try:
+            # Run the CPU-heavy/blocking embedding function in a thread
+            context, chunks = await asyncio.to_thread(
+                rag_engine.build_context,
+                query=request.query,
+                top_k=request.top_k,
+                source_filter=request.source_filter,
+            )
+        except Exception as e:
+            logging.warning("RAG retrieval failed in /ask/stream: %s", e)
 
     web_results = []
     web_attempted, web_reason = should_use_web_search(
         request.query,
         request.use_live_web_search,
         chunks,
+        request.context_mode,
     )
     logging.debug(f"Web fetch decision (/ask/stream): attempted={web_attempted}, reason={web_reason}")
     try:
@@ -544,6 +572,17 @@ async def ask_stream(request: QueryRequest):
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.get("/web/sources")
+def web_sources():
+    """Expose approved defense-study web domains used for web context retrieval."""
+    domains = _allowed_domains()
+    rows = []
+    for d in domains:
+        trust = "high" if d.endswith(("gov.in", "nic.in", "cdac.in")) else "medium"
+        rows.append({"domain": d, "trust": trust})
+    return {"domains": rows, "count": len(rows)}
 
 
 # Register API router

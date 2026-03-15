@@ -24,7 +24,7 @@ export async function deletePdf(filename) {
   return res.json()
 }
 
-export async function askQuestion(question, examType, model, temperature, topK, sourceFilter, useLiveWebSearch = true) {
+export async function askQuestion(question, examType, model, temperature, topK, sourceFilter, useLiveWebSearch = true, contextMode = 'hybrid') {
   const res = await fetch(`${API_BASE}/ask`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -36,6 +36,7 @@ export async function askQuestion(question, examType, model, temperature, topK, 
       top_k: topK,
       source_filter: sourceFilter,
       use_live_web_search: useLiveWebSearch,
+      context_mode: contextMode,
     }),
   })
   if (!res.ok) throw new Error('Failed to ask question')
@@ -46,7 +47,7 @@ export async function askQuestion(question, examType, model, temperature, topK, 
  * Stream a response from the backend using SSE.
  * Returns an AbortController so the caller can cancel mid-stream.
  */
-export function askStream(question, examType, model, temperature, topK, sourceFilter, useLiveWebSearch, chatHistory, imageData, { onToken, onSources, onSuggestions, onDone, onError }) {
+export function askStream(question, examType, model, temperature, topK, sourceFilter, useLiveWebSearch, contextMode, chatHistory, imageData, { onToken, onSources, onSuggestions, onDone, onError }) {
   const controller = new AbortController()
 
   ; (async () => {
@@ -58,6 +59,7 @@ export function askStream(question, examType, model, temperature, topK, sourceFi
       top_k: topK,
       source_filter: sourceFilter,
       use_live_web_search: useLiveWebSearch,
+      context_mode: contextMode || 'hybrid',
       chat_history: chatHistory,
       image_data: imageData,
     })

@@ -22,6 +22,7 @@ export default function ChatPage() {
   const [models, setModels] = useState([])
   const [defaultModel, setDefaultModel] = useState(null)
   const [useLiveWebSearch, setUseLiveWebSearch] = useState(true)
+  const [contextMode, setContextMode] = useState('hybrid')
   const [saveStatus, setSaveStatus] = useState('idle')
   const saveStatusTimerRef = useRef(null)
   const [showTour, setShowTour] = useState(false)
@@ -184,6 +185,8 @@ export default function ChatPage() {
     sourceFilter: null,
     useLiveWebSearch,
     setUseLiveWebSearch,
+    contextMode,
+    setContextMode,
   }
 
   if (status === 'loading') {

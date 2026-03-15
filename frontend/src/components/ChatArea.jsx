@@ -260,6 +260,7 @@ export default function ChatArea({
       settings.topK,
       settings.sourceFilter,
       settings.useLiveWebSearch,
+      settings.contextMode,
       chatHistory,
       activeImage,
       {
@@ -488,6 +489,26 @@ export default function ChatArea({
             </span>
           </motion.button>
 
+          <div className="flex items-center gap-1 shrink-0">
+            {[
+              { key: 'hybrid', label: 'Hybrid' },
+              { key: 'pdf_only', label: 'PDF' },
+              { key: 'web_only', label: 'Web' },
+            ].map(opt => (
+              <button
+                key={opt.key}
+                onClick={() => settings.setContextMode?.(opt.key)}
+                className={`px-2 py-1.5 rounded-md border text-[10px] font-mono uppercase tracking-wide ${settings.contextMode === opt.key
+                  ? 'text-[#00ff41] bg-[#00ff41]/10 border-[#00ff41]/35'
+                  : 'text-gray-500 border-[#00ff41]/10 hover:border-[#00ff41]/25'
+                  }`}
+                title={`Context mode: ${opt.label}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
           <motion.button
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.96 }}
@@ -552,6 +573,9 @@ export default function ChatArea({
           </div>
           <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60">
             Web: <span className={settings.useLiveWebSearch ? 'text-[#00ff41]' : 'text-gray-400'}>{settings.useLiveWebSearch ? 'On' : 'Off'}</span>
+          </div>
+          <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60">
+            Mode: <span className="text-[#00ff41]/90">{settings.contextMode || 'hybrid'}</span>
           </div>
           <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60">
             Last latency: <span className="text-[#00ff41]/90">{lastLatencyMs != null ? `${(lastLatencyMs / 1000).toFixed(1)}s` : '--'}</span>

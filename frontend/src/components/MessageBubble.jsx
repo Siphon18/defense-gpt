@@ -21,6 +21,7 @@ function SourcesPanel({ sources }) {
             title: item.title || 'Web source',
             text: item.snippet || item.content || '',
             link: item.link || '',
+            trust: item.trust || 'medium',
             type: 'web',
           })
         })
@@ -30,6 +31,7 @@ function SourcesPanel({ sources }) {
           title: 'Web source',
           text: s.preview || '',
           link: '',
+          trust: 'medium',
           type: 'web',
         })
       }
@@ -97,13 +99,20 @@ function SourcesPanel({ sources }) {
             >
               <div className="flex items-start justify-between gap-2">
                 <span className={`font-medium font-mono ${item.type === 'web' ? 'text-blue-300' : 'text-[#00ff41]/70'}`}>{item.title}</span>
-                <button
-                  onClick={() => setPinnedId(item.id)}
-                  className="text-gray-400 hover:text-yellow-300 transition-colors"
-                  title="Pin source"
-                >
-                  <Pin size={11} />
-                </button>
+                <div className="flex items-center gap-2">
+                  {item.type === 'web' && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${item.trust === 'high' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-yellow-500/20 text-yellow-300'}`}>
+                      {item.trust}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setPinnedId(item.id)}
+                    className="text-gray-400 hover:text-yellow-300 transition-colors"
+                    title="Pin source"
+                  >
+                    <Pin size={11} />
+                  </button>
+                </div>
               </div>
               {item.text && (
                 <p className="text-gray-300 mt-1 line-clamp-2">{item.text}</p>

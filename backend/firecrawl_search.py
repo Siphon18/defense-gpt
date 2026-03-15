@@ -110,11 +110,19 @@ def _cloudflare_markdown(url: str) -> str:
         return ""
 
 
-def firecrawl_search(query: str, limit: int = 3) -> list[dict]:
+def firecrawl_search(query: str, limit: int = 3, return_meta: bool = False):
     """Search defense-study domains via Firecrawl and enrich with Cloudflare markdown when configured."""
+    meta = {
+        "status": "ok",
+        "reason": "fetched",
+        "candidates": 0,
+        "filtered_out": 0,
+        "scrape_failures": 0,
+    }
     if not _firecrawl_client:
         logger.warning("FIRECRAWL_API_KEY missing; skipping web search.")
-        return []
+        meta.update({"status": "disabled", "reason": "missing_firecrawl_api_key"})
+        return ([], meta) if return_meta else []
 
     allowed_domains = _allowed_domains()
     try:
@@ -132,6 +140,10 @@ def firecrawl_search(query: str, limit: int = 3) -> list[dict]:
         if not candidates:
             fallback = _to_dict(_firecrawl_client.search(query=query, limit=max(limit, 5)))
             candidates = fallback.get("web") or []
+        meta["candidates"] = len(candidates)
+        if not candidates:
+            meta.update({"status": "unavailable", "reason": "no_search_results"})
+            return ([], meta) if return_meta else []
 
         seen_links = set()
         results = []
@@ -143,6 +155,7 @@ def firecrawl_search(query: str, limit: int = 3) -> list[dict]:
             if not url or url in seen_links:
                 continue
             if not _is_allowed_url(url, allowed_domains):
+                meta["filtered_out"] += 1
                 continue
             seen_links.add(url)
             try:
@@ -152,6 +165,7 @@ def firecrawl_search(query: str, limit: int = 3) -> list[dict]:
                     content = _extract_content(scraped)
             except Exception as scrape_error:
                 logger.warning("Firecrawl scrape failed for %s: %s", url, scrape_error)
+                meta["scrape_failures"] += 1
                 content = ""
 
             results.append({
@@ -164,8 +178,15 @@ def firecrawl_search(query: str, limit: int = 3) -> list[dict]:
             })
             if len(results) >= limit:
                 break
-
-        return results
+        if not results:
+            if meta["filtered_out"] > 0:
+                meta.update({"status": "unavailable", "reason": "filtered_by_allowed_domains"})
+            elif meta["scrape_failures"] > 0:
+                meta.update({"status": "unavailable", "reason": "scrape_failed"})
+            else:
+                meta.update({"status": "unavailable", "reason": "no_usable_results"})
+        return (results, meta) if return_meta else results
     except Exception as search_error:
         logger.error("Firecrawl search failed: %s", search_error)
-        return []
+        meta.update({"status": "error", "reason": "search_error"})
+        return ([], meta) if return_meta else []

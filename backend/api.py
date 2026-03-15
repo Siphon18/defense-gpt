@@ -107,11 +107,25 @@ def should_use_web_search(query: str, use_live_web_search: bool, chunks: list, c
     return True, "enabled"
 
 
-def build_web_summary(web_results: list[dict], attempted: bool = False) -> str:
+def _human_web_reason(reason: str) -> str:
+    mapping = {
+        "missing_firecrawl_api_key": "web search is not configured on the server",
+        "no_search_results": "no recent web matches were returned",
+        "filtered_by_allowed_domains": "results were outside approved study domains",
+        "scrape_failed": "web pages could not be scraped at this time",
+        "search_error": "web provider request failed",
+        "no_usable_results": "no usable verified snippets were extracted",
+    }
+    return mapping.get(reason, reason or "unknown")
+
+
+def build_web_summary(web_results: list[dict], attempted: bool = False, web_meta: dict | None = None) -> str:
     if not web_results:
         if attempted:
+            reason = _human_web_reason((web_meta or {}).get("reason", "unknown"))
             return (
                 "\n\nWEB_VERIFICATION: unavailable\n"
+                f"Reason: {reason}. "
                 "No verified web results were retrieved for this current-affairs query. "
                 "Do not present unverified latest claims as facts."
             )
@@ -260,6 +274,7 @@ def ask_question(request: QueryRequest):
             )
         logging.debug("Retrieved %d RAG chunks for query.", len(chunks))
         web_results = []
+        web_meta = {}
         logging.debug(f"Received query: {request.query}")
         web_attempted, web_reason = should_use_web_search(
             request.query,
@@ -270,10 +285,10 @@ def ask_question(request: QueryRequest):
         logging.debug(f"Web fetch decision: attempted={web_attempted}, reason={web_reason}")
         if web_attempted:
             logging.debug("Web fetch triggered.")
-            web_results = firecrawl_search(request.query)
+            web_results, web_meta = firecrawl_search(request.query, return_meta=True)
             logging.debug(f"Web results: {web_results}")
         # Step 2: Generate response via Groq, blending web results if present
-        web_summary = build_web_summary(web_results, attempted=web_attempted)
+        web_summary = build_web_summary(web_results, attempted=web_attempted, web_meta=web_meta)
         answer = groq_client.generate_response(
             query=request.query,
             context=context + web_summary,
@@ -482,6 +497,7 @@ async def ask_stream(request: QueryRequest):
             logging.warning("RAG retrieval failed in /ask/stream: %s", e)
 
     web_results = []
+    web_meta = {}
     web_attempted, web_reason = should_use_web_search(
         request.query,
         request.use_live_web_search,
@@ -491,11 +507,15 @@ async def ask_stream(request: QueryRequest):
     logging.debug(f"Web fetch decision (/ask/stream): attempted={web_attempted}, reason={web_reason}")
     try:
         if web_attempted:
-            web_results = await asyncio.to_thread(firecrawl_search, request.query)
+            web_results, web_meta = await asyncio.to_thread(
+                firecrawl_search, request.query, 3, True
+            )
     except Exception as e:
         logging.warning("Web search failed in /ask/stream: %s", e)
 
-    context = (context or "") + build_web_summary(web_results, attempted=web_attempted)
+    context = (context or "") + build_web_summary(
+        web_results, attempted=web_attempted, web_meta=web_meta
+    )
 
     sources = [
         {

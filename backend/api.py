@@ -24,6 +24,7 @@ from backend.rag_engine import rag_engine
 from backend.groq_client import groq_client
 from backend.firecrawl_search import firecrawl_search
 from backend.firecrawl_search import _allowed_domains
+from backend.google_grounding import google_grounding_search
 
 WEB_KEYWORDS = [
     'news', 'latest', 'current', 'today', 'event', 'update', 'breaking', 'headline', 'happening', 'recent', 'trending', 'report', 'web', 'internet', 'online'
@@ -118,6 +119,11 @@ def _human_web_reason(reason: str) -> str:
         "scrape_failed": "web pages could not be scraped at this time",
         "search_error": "web provider request failed",
         "no_usable_results": "no usable verified snippets were extracted",
+        "google_grounding_disabled": "google grounding is disabled on the server",
+        "missing_gemini_api_key": "gemini key is missing for grounding",
+        "google_grounding_error": "google grounding request failed",
+        "grounding_no_results": "google grounding returned no usable results",
+        "missing_allowed_domains": "no approved domains are configured",
     }
     return mapping.get(reason, reason or "unknown")
 
@@ -288,7 +294,20 @@ def ask_question(request: QueryRequest):
         logging.debug(f"Web fetch decision: attempted={web_attempted}, reason={web_reason}")
         if web_attempted:
             logging.debug("Web fetch triggered.")
-            web_results, web_meta = firecrawl_search(request.query, return_meta=True)
+            allowed_domains = _allowed_domains()
+            web_results, web_meta = google_grounding_search(
+                request.query,
+                limit=3,
+                allowed_domains=allowed_domains,
+                return_meta=True,
+            )
+            if not web_results:
+                fallback_results, fallback_meta = firecrawl_search(request.query, return_meta=True)
+                if fallback_results:
+                    web_results = fallback_results
+                    web_meta = {"status": "ok", "reason": "firecrawl_fallback_success"}
+                else:
+                    web_meta = fallback_meta or web_meta
             logging.debug(f"Web results: {web_results}")
         # Step 2: Generate response via Groq, blending web results if present
         web_summary = build_web_summary(web_results, attempted=web_attempted, web_meta=web_meta)
@@ -510,9 +529,19 @@ async def ask_stream(request: QueryRequest):
     logging.debug(f"Web fetch decision (/ask/stream): attempted={web_attempted}, reason={web_reason}")
     try:
         if web_attempted:
+            allowed_domains = _allowed_domains()
             web_results, web_meta = await asyncio.to_thread(
-                firecrawl_search, request.query, 3, True
+                google_grounding_search, request.query, 3, allowed_domains, True
             )
+            if not web_results:
+                fallback_results, fallback_meta = await asyncio.to_thread(
+                    firecrawl_search, request.query, 3, True
+                )
+                if fallback_results:
+                    web_results = fallback_results
+                    web_meta = {"status": "ok", "reason": "firecrawl_fallback_success"}
+                else:
+                    web_meta = fallback_meta or web_meta
     except Exception as e:
         logging.warning("Web search failed in /ask/stream: %s", e)
 

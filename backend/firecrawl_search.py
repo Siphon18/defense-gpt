@@ -38,6 +38,16 @@ DEFAULT_DEFENSE_STUDY_DOMAINS = [
     "selfstudys.com",
     "cdsjourney.com",
     "jovikdefenceprep.com",
+    # Reputable news domains for current-affairs and geopolitical defense queries
+    "reuters.com",
+    "apnews.com",
+    "aljazeera.com",
+    "bbc.com",
+    "thehindu.com",
+    "indianexpress.com",
+    "timesofindia.indiatimes.com",
+    "hindustantimes.com",
+    "economictimes.indiatimes.com",
 ]
 
 

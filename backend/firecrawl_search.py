@@ -294,6 +294,7 @@ def firecrawl_search(query: str, limit: int = 3, return_meta: bool = False):
 
         seen_links = set()
         results = []
+        pool_limit = max(limit * 6, 12)
         for row in candidates:
             url = row.get("link")
             title = row.get("title") or "Untitled"
@@ -321,6 +322,9 @@ def firecrawl_search(query: str, limit: int = 3, return_meta: bool = False):
                     content = _http_extract(url)
                 if not content:
                     meta["scrape_failures"] += 1
+                if not content and snippet:
+                    # Preserve at least a minimal context payload when crawling fails.
+                    content = snippet[:500]
 
             results.append({
                 "title": title,
@@ -330,8 +334,21 @@ def firecrawl_search(query: str, limit: int = 3, return_meta: bool = False):
                 "trust": _trust_label(url),
                 "content": content,
             })
-            if len(results) >= limit:
+            if len(results) >= pool_limit:
                 break
+        # Prefer entries with extracted content and higher trust.
+        ranked = sorted(
+            results,
+            key=lambda r: (
+                1 if (r.get("content") or "").strip() else 0,
+                1 if r.get("trust") == "high" else 0,
+                len((r.get("content") or "").strip()),
+                len((r.get("snippet") or "").strip()),
+            ),
+            reverse=True,
+        )
+        results = ranked[:limit]
+        meta["selected"] = len(results)
         if not results:
             if meta["filtered_out"] > 0:
                 meta.update({"status": "unavailable", "reason": "filtered_by_allowed_domains"})

@@ -3,11 +3,11 @@ FastAPI Backend for Defense GPT
 Provides REST API endpoints for the frontend.
 """
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, APIRouter
+from fastapi import FastAPI, HTTPException, UploadFile, File, APIRouter, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, Field
 from pathlib import Path
 import shutil
 import json
@@ -15,8 +15,10 @@ import asyncio
 import os
 import re
 import logging
+from threading import Lock
 
-logging.basicConfig(level=logging.DEBUG)
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
 
 from backend.rag_engine import rag_engine
 from backend.groq_client import groq_client
@@ -117,17 +119,27 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS — allow all origins by default in production to easily connect Vercel
+# CORS configuration:
+# - wildcard origins cannot be used with credentials in browsers
+# - enable credentials only when explicit origins are configured
 cors_env = os.getenv("CORS_ORIGINS", "*")
-ALLOWED_ORIGINS = ["*"] if cors_env == "*" else cors_env.split(",")
+if cors_env.strip() == "*":
+    ALLOWED_ORIGINS = ["*"]
+    ALLOW_CREDENTIALS = False
+else:
+    ALLOWED_ORIGINS = [o.strip() for o in cors_env.split(",") if o.strip()]
+    ALLOW_CREDENTIALS = True
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=ALLOW_CREDENTIALS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if not ALLOW_CREDENTIALS:
+    logging.info("CORS credentials disabled because CORS_ORIGINS is wildcard '*'.")
 
 MAX_PDF_SIZE = 50 * 1024 * 1024  # 50 MB
 
@@ -145,7 +157,7 @@ class QueryRequest(BaseModel):
     exam_type: str = "General"
     top_k: int = 5
     source_filter: str | None = None
-    chat_history: list[dict] = []
+    chat_history: list[dict] = Field(default_factory=list)
     model: str | None = None
     temperature: float = 0.3
     image_data: str | None = None
@@ -221,7 +233,7 @@ def ask_question(request: QueryRequest):
             top_k=request.top_k,
             source_filter=request.source_filter,
         )
-        logging.debug(f"RAG context: {context}")
+        logging.debug("Retrieved %d RAG chunks for query.", len(chunks))
         web_results = []
         logging.debug(f"Received query: {request.query}")
         web_attempted, web_reason = should_use_web_search(
@@ -245,6 +257,8 @@ def ask_question(request: QueryRequest):
             temperature=request.temperature,
             image_data=request.image_data,
         )
+        if isinstance(answer, str) and answer.startswith("Error generating response:"):
+            raise RuntimeError(answer)
         logging.debug(f"LLM answer: {answer}")
         # Step 3: Format sources
         sources = [
@@ -343,11 +357,21 @@ async def upload_pdf(file: UploadFile = File(...)):
     file_path = PDF_DIR / safe_name
     
     try:
-        # Read with size limit
-        content = await file.read()
-        if len(content) > MAX_PDF_SIZE:
-            raise HTTPException(status_code=413, detail="File too large (max 50 MB)")
-        file_path.write_bytes(content)
+        # Stream upload to disk with size checks to avoid loading full file into memory.
+        total_size = 0
+        chunk_size = 1024 * 1024
+        with file_path.open("wb") as out:
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                total_size += len(chunk)
+                if total_size > MAX_PDF_SIZE:
+                    out.close()
+                    if file_path.exists():
+                        file_path.unlink()
+                    raise HTTPException(status_code=413, detail="File too large (max 50 MB)")
+                out.write(chunk)
         return {"message": f"Uploaded {safe_name}", "filename": safe_name}
     except HTTPException:
         raise
@@ -355,15 +379,34 @@ async def upload_pdf(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/ingest")
-def trigger_ingest():
-    """Trigger PDF ingestion into the vector database."""
+_INGEST_LOCK = Lock()
+_INGEST_IN_PROGRESS = False
+
+
+def _run_ingestion_job():
+    global _INGEST_IN_PROGRESS
     try:
         from backend.pdf_ingestion import ingest_pdfs as run_ingestion
         run_ingestion()
-        stats = rag_engine.get_stats()
-        return {"message": "Ingestion complete!", "stats": stats}
+    finally:
+        with _INGEST_LOCK:
+            _INGEST_IN_PROGRESS = False
+
+
+@router.post("/ingest")
+def trigger_ingest(background_tasks: BackgroundTasks):
+    """Trigger PDF ingestion into the vector database."""
+    global _INGEST_IN_PROGRESS
+    try:
+        with _INGEST_LOCK:
+            if _INGEST_IN_PROGRESS:
+                return {"message": "Ingestion already running"}
+            _INGEST_IN_PROGRESS = True
+        background_tasks.add_task(_run_ingestion_job)
+        return {"message": "Ingestion started"}
     except Exception as e:
+        with _INGEST_LOCK:
+            _INGEST_IN_PROGRESS = False
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -228,7 +228,7 @@ class GroqClient:
             )
             return response.choices[0].message.content
         except Exception as e:
-            return f"Error generating response: {e}"
+            raise RuntimeError(f"Error generating response: {e}") from e
 
     def generate_json(self, system_prompt: str, model=None, temperature=0.7, max_tokens=2048) -> str:
         """Forces the LLM to output strictly formatted JSON according to the prompt."""
@@ -376,7 +376,7 @@ class GeminiClient:
             )
             return response.text
         except Exception as e:
-            return f"Error generating response: {e}"
+            raise RuntimeError(f"Error generating response: {e}") from e
 
     def stream_response(self, query, context="", exam_type="General",
                         chat_history=None, model=None, temperature=0.3,

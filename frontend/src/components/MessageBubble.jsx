@@ -39,8 +39,8 @@ function SourcesPanel({ sources }) {
               className="text-xs glass-card rounded-lg px-3 py-2 border-l-2 border-[#00ff41]/30"
             >
               <span className="text-[#00ff41]/70 font-medium font-mono">{s.source}</span>
-              {s.text && (
-                <p className="text-gray-600 mt-1 line-clamp-2">{s.text}</p>
+              {(s.preview || s.text) && (
+                <p className="text-gray-600 mt-1 line-clamp-2">{s.preview || s.text}</p>
               )}
             </motion.div>
           ))}

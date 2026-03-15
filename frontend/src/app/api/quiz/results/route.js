@@ -12,6 +12,24 @@ export async function POST(request) {
         }
 
         const result = await request.json()
+        if (!result || typeof result !== 'object') {
+            return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+        }
+        const totalQuestions = Number(result.totalQuestions)
+        const score = Number(result.score)
+        const percentage = Number(result.percentage)
+        if (!Number.isInteger(totalQuestions) || totalQuestions < 1 || totalQuestions > 100) {
+            return NextResponse.json({ error: 'Invalid totalQuestions' }, { status: 400 })
+        }
+        if (!Number.isInteger(score) || score < 0 || score > totalQuestions) {
+            return NextResponse.json({ error: 'Invalid score' }, { status: 400 })
+        }
+        if (!Number.isFinite(percentage) || percentage < 0 || percentage > 100) {
+            return NextResponse.json({ error: 'Invalid percentage' }, { status: 400 })
+        }
+        if (!Array.isArray(result.answers) || result.answers.length !== totalQuestions) {
+            return NextResponse.json({ error: 'Invalid answers' }, { status: 400 })
+        }
         const client = await clientPromise
         const db = client.db('defensegpt')
 
@@ -20,9 +38,9 @@ export async function POST(request) {
             examType: result.examType,
             topic: result.topic,
             difficulty: result.difficulty,
-            totalQuestions: result.totalQuestions,
-            score: result.score,
-            percentage: result.percentage,
+            totalQuestions,
+            score,
+            percentage,
             answers: result.answers,
             createdAt: new Date(),
         }

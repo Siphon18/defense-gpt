@@ -52,8 +52,9 @@ export default function ChatPage() {
   const updateMessages = useCallback((updater) => {
     const currentId = activeChatIdRef.current
     if (!currentId) return
+    let chatToSave = null
     setChats(prev => {
-      return prev.map(c => {
+      const next = prev.map(c => {
         if (c.id !== currentId) return c
         const newMsgs = typeof updater === 'function' ? updater(c.messages) : updater
         const updated = { ...c, messages: newMsgs, updatedAt: Date.now() }
@@ -61,10 +62,14 @@ export default function ChatPage() {
           const firstUser = newMsgs.find(m => m.role === 'user')
           if (firstUser) updated.title = firstUser.content.slice(0, 50)
         }
-        saveChat(updated) // fire-and-forget async save
+        chatToSave = updated
         return updated
       })
+      return next
     })
+    if (chatToSave) {
+      saveChat(chatToSave) // fire-and-forget async save
+    }
   }, [])
 
   const handleNewChat = async () => {

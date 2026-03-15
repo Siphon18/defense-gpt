@@ -12,7 +12,10 @@ export async function DELETE(request, { params }) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const { id } = await params
+        const { id } = params
+        if (!ObjectId.isValid(id)) {
+            return NextResponse.json({ error: 'Invalid chat id' }, { status: 400 })
+        }
         const client = await clientPromise
         const db = client.db('defensegpt')
 

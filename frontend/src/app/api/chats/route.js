@@ -43,6 +43,18 @@ export async function POST(request) {
         }
 
         const chat = await request.json()
+        if (!chat || typeof chat !== 'object') {
+            return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+        }
+        if (!Array.isArray(chat.messages)) {
+            return NextResponse.json({ error: 'messages must be an array' }, { status: 400 })
+        }
+        if (chat.messages.length > 500) {
+            return NextResponse.json({ error: 'messages limit exceeded' }, { status: 400 })
+        }
+        if (chat.title != null && (typeof chat.title !== 'string' || chat.title.length > 200)) {
+            return NextResponse.json({ error: 'invalid title' }, { status: 400 })
+        }
         const client = await clientPromise
         const db = client.db('defensegpt')
         const collection = db.collection('chats')

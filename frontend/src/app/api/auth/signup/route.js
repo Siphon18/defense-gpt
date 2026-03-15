@@ -19,6 +19,18 @@ export async function POST(request) {
                 { status: 400 }
             )
         }
+        if (typeof name !== 'string' || name.length > 120) {
+            return NextResponse.json(
+                { error: 'Name is invalid.' },
+                { status: 400 }
+            )
+        }
+        if (typeof email !== 'string' || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return NextResponse.json(
+                { error: 'Email is invalid.' },
+                { status: 400 }
+            )
+        }
 
         const client = await clientPromise
         const db = client.db('defensegpt')

@@ -39,7 +39,10 @@ ENTITY_TERMS = [
     "army", "navy", "air force", "drdo", "mod", "ministry of defence", "cds",
     "general", "admiral", "marshal", "lt general", "missile", "defence", "defense",
     "ssb", "nda", "cds exam", "afcat", "upsc", "poonch", "kupwara", "srinagar",
-    "loc", "border", "terror", "security", "ed", "eow"
+    "loc", "border", "terror", "security", "ed", "eow",
+    # Geopolitical and maritime current-affairs entities
+    "strait of hormuz", "hormuz", "persian gulf", "gulf of oman", "arabian sea",
+    "iran", "iraq", "israel", "middle east", "red sea", "bab el-mandeb"
 ]
 
 STATIC_FACT_TERMS = [

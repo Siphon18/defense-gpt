@@ -637,6 +637,44 @@ def web_sources():
     return {"domains": rows, "count": len(rows)}
 
 
+@router.get("/web/debug")
+def web_debug(query: str, limit: int = 3):
+    """
+    Debug helper to inspect web retrieval behavior.
+    Returns retriever selection, reasons, and top normalized results.
+    """
+    capped_limit = max(1, min(limit, 8))
+    domains = _allowed_domains()
+
+    primary_results, primary_meta = google_grounding_search(
+        query=query,
+        limit=capped_limit,
+        allowed_domains=domains,
+        return_meta=True,
+    )
+
+    used = "google_grounding"
+    fallback_meta = None
+    final_results = primary_results
+
+    if not primary_results:
+        used = "firecrawl_fallback"
+        fallback_results, fallback_meta = firecrawl_search(
+            query=query, limit=capped_limit, return_meta=True
+        )
+        final_results = fallback_results
+
+    return {
+        "query": query,
+        "limit": capped_limit,
+        "used_retriever": used,
+        "result_count": len(final_results),
+        "primary_meta": primary_meta,
+        "fallback_meta": fallback_meta,
+        "results": final_results,
+    }
+
+
 # Register API router
 app.include_router(router)
 

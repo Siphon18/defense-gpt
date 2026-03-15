@@ -39,6 +39,11 @@ export default function ChatArea({
   ]
   const modeOrder = ['hybrid', 'pdf_only', 'web_only']
   const modeLabel = settings.contextMode === 'pdf_only' ? 'PDF' : settings.contextMode === 'web_only' ? 'WEB' : 'HYBRID'
+  const showWebSearchAnimation = Boolean(
+    isLoading &&
+    settings.useLiveWebSearch &&
+    (settings.contextMode === 'hybrid' || settings.contextMode === 'web_only')
+  )
 
   const pushToast = useCallback((message, type = 'info') => {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2)
@@ -581,6 +586,49 @@ export default function ChatArea({
             className="max-w-3xl mx-auto px-4 py-5"
           >
             <div className="ml-11 glass-card border border-[#00ff41]/15 rounded-xl px-4 py-3 max-w-md">
+              {showWebSearchAnimation && (
+                <div className="mb-3 pb-3 border-b border-[#00ff41]/10">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[10px] text-[#00ff41]/60 font-mono uppercase tracking-[0.18em]">
+                      Searching Trusted Sources
+                    </span>
+                    <span className="text-[10px] text-[#00ff41]/45 font-mono uppercase tracking-wider">
+                      LIVE
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-center gap-2">
+                    {[
+                      { code: 'G', label: 'Grounding' },
+                      { code: 'F', label: 'Fallback' },
+                      { code: 'V', label: 'Verify' },
+                    ].map((node, idx) => (
+                      <motion.div
+                        key={node.code}
+                        className="h-6 px-2 rounded-full border border-[#00ff41]/25 bg-[#00ff41]/5 text-[10px] text-[#00ff41]/70 font-mono flex items-center gap-1"
+                        initial={{ opacity: 0.35, scale: 0.96 }}
+                        animate={{ opacity: [0.35, 1, 0.35], scale: [0.96, 1.03, 0.96] }}
+                        transition={{ duration: 1.3, delay: idx * 0.2, repeat: Infinity, ease: 'easeInOut' }}
+                      >
+                        <span className="inline-block w-3.5 h-3.5 rounded-full bg-[#00ff41]/15 border border-[#00ff41]/30 text-center leading-[12px] text-[9px]">
+                          {node.code}
+                        </span>
+                        {node.label}
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  <div className="mt-2 h-1 w-full bg-[#00ff41]/10 rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-transparent via-[#00ff41]/70 to-transparent"
+                      initial={{ x: '-40%' }}
+                      animate={{ x: '140%' }}
+                      transition={{ duration: 1.1, repeat: Infinity, ease: 'linear' }}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-3">
                 <div className="flex gap-2">
                   <span className="typing-radar-dot" />

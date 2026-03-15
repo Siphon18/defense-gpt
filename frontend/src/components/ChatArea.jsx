@@ -1,6 +1,6 @@
 "use client"
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Square, ArrowDown, Sparkles, Mic, Paperclip, X, Image as ImageIcon, Globe, Keyboard } from 'lucide-react'
+import { Send, Square, ArrowDown, Sparkles, Mic, Paperclip, X, Image as ImageIcon } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import MessageBubble from './MessageBubble'
 import { askStream } from '@/lib/api'
@@ -37,6 +37,8 @@ export default function ChatArea({
     'Drafting tactical response...',
     'Finalizing answer...'
   ]
+  const modeOrder = ['hybrid', 'pdf_only', 'web_only']
+  const modeLabel = settings.contextMode === 'pdf_only' ? 'PDF' : settings.contextMode === 'web_only' ? 'WEB' : 'HYBRID'
 
   const pushToast = useCallback((message, type = 'info') => {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2)
@@ -358,6 +360,12 @@ export default function ChatArea({
     handleSend(prompt)
   }
 
+  const cycleContextMode = () => {
+    const current = modeOrder.indexOf(settings.contextMode || 'hybrid')
+    const next = modeOrder[(current + 1) % modeOrder.length]
+    settings.setContextMode?.(next)
+  }
+
   const handleKeyDown = (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault()
@@ -472,53 +480,6 @@ export default function ChatArea({
             <Mic size={16} />
           </motion.button>
 
-          {/* Live web search toggle */}
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
-            onClick={() => settings.setUseLiveWebSearch?.(!settings.useLiveWebSearch)}
-            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all duration-300 shrink-0 border ${settings.useLiveWebSearch
-              ? 'text-[#00ff41]/85 bg-[#00ff41]/10 border-[#00ff41]/30'
-              : 'text-gray-500 bg-transparent border-[#00ff41]/10 hover:border-[#00ff41]/25'
-              }`}
-            title={settings.useLiveWebSearch ? "Live web search: ON" : "Live web search: OFF"}
-          >
-            <Globe size={15} />
-            <span className="text-[10px] font-mono tracking-wide uppercase">
-              Web {settings.useLiveWebSearch ? 'ON' : 'OFF'}
-            </span>
-          </motion.button>
-
-          <div className="flex items-center gap-1 shrink-0">
-            {[
-              { key: 'hybrid', label: 'Hybrid' },
-              { key: 'pdf_only', label: 'PDF' },
-              { key: 'web_only', label: 'Web' },
-            ].map(opt => (
-              <button
-                key={opt.key}
-                onClick={() => settings.setContextMode?.(opt.key)}
-                className={`px-2 py-1.5 rounded-md border text-[10px] font-mono uppercase tracking-wide ${settings.contextMode === opt.key
-                  ? 'text-[#00ff41] bg-[#00ff41]/10 border-[#00ff41]/35'
-                  : 'text-gray-500 border-[#00ff41]/10 hover:border-[#00ff41]/25'
-                  }`}
-                title={`Context mode: ${opt.label}`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
-            onClick={() => setShowShortcuts(v => !v)}
-            className="p-1.5 rounded-lg text-gray-500 hover:text-[#00ff41]/70 hover:bg-[#00ff41]/5 border border-[#00ff41]/10 transition-all duration-300 shrink-0"
-            title="Keyboard shortcuts"
-          >
-            <Keyboard size={15} />
-          </motion.button>
-
           <textarea
             ref={textareaRef}
             value={input}
@@ -550,9 +511,6 @@ export default function ChatArea({
             </motion.button>
           )}
         </div>
-        <p className="text-[10px] text-gray-700 text-center mt-1.5 font-mono tracking-wide">
-          Defense GPT • AI-Powered Exam Intelligence
-        </p>
       </div>
     </div>
   )
@@ -571,12 +529,23 @@ export default function ChatArea({
           <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60">
             Exam: <span className="text-[#00ff41]/90">{settings.examType || 'General'}</span>
           </div>
-          <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60">
-            Web: <span className={settings.useLiveWebSearch ? 'text-[#00ff41]' : 'text-gray-400'}>{settings.useLiveWebSearch ? 'On' : 'Off'}</span>
-          </div>
-          <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60">
-            Mode: <span className="text-[#00ff41]/90">{settings.contextMode || 'hybrid'}</span>
-          </div>
+          <button
+            onClick={() => settings.setUseLiveWebSearch?.(!settings.useLiveWebSearch)}
+            className={`text-[10px] uppercase tracking-[0.18em] font-mono px-2 py-1 rounded-md border ${settings.useLiveWebSearch
+              ? 'text-[#00ff41] border-[#00ff41]/35 bg-[#00ff41]/10'
+              : 'text-gray-400 border-[#00ff41]/10'
+              }`}
+            title="Toggle live web search"
+          >
+            Web {settings.useLiveWebSearch ? 'On' : 'Off'}
+          </button>
+          <button
+            onClick={cycleContextMode}
+            className="text-[10px] uppercase tracking-[0.18em] font-mono px-2 py-1 rounded-md border text-[#00ff41]/90 border-[#00ff41]/25 hover:border-[#00ff41]/45"
+            title="Cycle context mode"
+          >
+            Mode {modeLabel}
+          </button>
           <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60">
             Last latency: <span className="text-[#00ff41]/90">{lastLatencyMs != null ? `${(lastLatencyMs / 1000).toFixed(1)}s` : '--'}</span>
           </div>

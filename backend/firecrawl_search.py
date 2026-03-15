@@ -8,6 +8,7 @@ from typing import Any
 from dotenv import load_dotenv
 from firecrawl import Firecrawl
 import requests
+from bs4 import BeautifulSoup
 
 load_dotenv()
 
@@ -157,73 +158,75 @@ def _http_extract(url: str, timeout: int = 12) -> str:
 
 
 def _decode_ddg_url(url: str) -> str:
-    # DuckDuckGo wraps outbound URLs as /l/?uddg=<encoded-url>
-    if "duckduckgo.com/l/?" in url and "uddg=" in url:
-        try:
-            parsed = urlparse(url)
+    # DuckDuckGo wraps outbound URLs as /l/?uddg=<encoded-url> (absolute or relative).
+    try:
+        parsed = urlparse(url)
+        is_ddg_redirect = (
+            ("duckduckgo.com" in (parsed.netloc or "").lower() and parsed.path.startswith("/l/"))
+            or (not parsed.netloc and parsed.path.startswith("/l/"))
+        )
+        if is_ddg_redirect:
             q = parse_qs(parsed.query)
             uddg = q.get("uddg", [""])[0]
             if uddg:
                 return unquote(uddg)
-        except Exception:
-            return url
+    except Exception:
+        return url
     return url
 
 
 def _extract_ddg_candidates(html: str, limit: int = 8) -> tuple[list[dict], str]:
     rows = []
     seen = set()
+    parser_used = "no_match"
+    soup = BeautifulSoup(html or "", "html.parser")
+    anchors = soup.find_all("a", href=True)
 
-    # Strategy 1: html.duckduckgo.com result blocks
-    blocks = re.findall(r'(?s)<div class="result.*?</div>\s*</div>', html)
-    for block in blocks:
-        m_link = re.search(r'<a[^>]*class="result__a"[^>]*href="([^"]+)"', block)
-        if not m_link:
+    for a in anchors:
+        raw_href = (a.get("href") or "").strip()
+        if not raw_href:
             continue
-        raw_link = unescape(m_link.group(1))
-        link = _decode_ddg_url(raw_link)
-        if not link.startswith("http") or link in seen:
+        href = unescape(raw_href)
+        classes = a.get("class") or []
+        class_str = " ".join(classes) if isinstance(classes, list) else str(classes)
+
+        # Preferred DDG result anchors.
+        is_primary_anchor = ("result__a" in class_str) or ("result-link" in class_str)
+        is_ddg_redirect = ("uddg=" in href and ("/l/?" in href or href.startswith("/l/?")))
+        is_external_direct = href.startswith("http://") or href.startswith("https://")
+
+        if not (is_primary_anchor or is_ddg_redirect or is_external_direct):
             continue
-        seen.add(link)
 
-        m_title = re.search(r'<a[^>]*class="result__a"[^>]*>(.*?)</a>', block, re.DOTALL)
-        title = _strip_html(m_title.group(1)) if m_title else "Untitled"
-
-        m_snip = re.search(r'<a[^>]*class="result__snippet"[^>]*>(.*?)</a>', block, re.DOTALL)
-        if not m_snip:
-            m_snip = re.search(r'<div[^>]*class="result__snippet"[^>]*>(.*?)</div>', block, re.DOTALL)
-        snippet = _strip_html(m_snip.group(1)) if m_snip else ""
-
-        rows.append({"title": title, "snippet": snippet, "link": link})
-        if len(rows) >= limit:
-            return rows, "result_blocks"
-
-    # Strategy 2: generic DDG redirect anchors (/l/?uddg=...)
-    for m in re.finditer(r'<a[^>]*href="([^"]*duckduckgo\.com/l/\?[^"]+uddg=[^"]+)"[^>]*>(.*?)</a>', html, re.DOTALL):
-        raw_link = unescape(m.group(1))
-        link = _decode_ddg_url(raw_link)
-        if not link.startswith("http") or link in seen:
+        link = _decode_ddg_url(href)
+        if link.startswith("//"):
+            link = "https:" + link
+        if link.startswith("/"):
+            # Skip internal/navigation paths that aren't decoded redirects.
             continue
-        seen.add(link)
-        title = _strip_html(m.group(2)) or "Untitled"
-        rows.append({"title": title, "snippet": "", "link": link})
-        if len(rows) >= limit:
-            return rows, "redirect_anchors"
-
-    # Strategy 3: ultra-loose fallback for direct outbound anchors
-    for m in re.finditer(r'<a[^>]*href="(https?://[^"]+)"[^>]*>(.*?)</a>', html, re.DOTALL):
-        link = unescape(m.group(1)).strip()
+        if not link.startswith("http"):
+            continue
         if "duckduckgo.com" in _host(link):
             continue
         if link in seen:
             continue
         seen.add(link)
-        title = _strip_html(m.group(2)) or "Untitled"
-        rows.append({"title": title, "snippet": "", "link": link})
-        if len(rows) >= limit:
-            return rows, "generic_anchors"
 
-    return rows, "no_match"
+        title = _strip_html(a.get_text(" ", strip=True)) or "Untitled"
+        row = {"title": title, "snippet": "", "link": link}
+        rows.append(row)
+
+        if is_primary_anchor and parser_used == "no_match":
+            parser_used = "primary_anchor"
+        elif is_ddg_redirect and parser_used == "no_match":
+            parser_used = "uddg_redirect"
+        elif is_external_direct and parser_used == "no_match":
+            parser_used = "external_anchor"
+
+        if len(rows) >= limit:
+            break
+
+    return rows, parser_used
 
 
 def duckduckgo_search(query: str, limit: int = 8, return_meta: bool = False):
@@ -234,6 +237,7 @@ def duckduckgo_search(query: str, limit: int = 8, return_meta: bool = False):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                       "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     }
     meta = {
@@ -243,22 +247,11 @@ def duckduckgo_search(query: str, limit: int = 8, return_meta: bool = False):
         "errors": [],
         "sample": "",
     }
-    endpoints = [
-        ("html_post", "https://html.duckduckgo.com/html/", "post"),
-        ("lite_get", "https://lite.duckduckgo.com/lite/", "get"),
-    ]
+    endpoints = [("html_get", "https://html.duckduckgo.com/html/", "get")]
     try:
         for label, url, method in endpoints:
             try:
-                if method == "post":
-                    res = requests.post(
-                        url,
-                        headers={**headers, "Content-Type": "application/x-www-form-urlencoded"},
-                        data={"q": query},
-                        timeout=18,
-                    )
-                else:
-                    res = requests.get(url, headers=headers, params={"q": query}, timeout=18)
+                res = requests.get(url, headers=headers, params={"q": query}, timeout=18)
                 res.raise_for_status()
                 html = res.text or ""
                 rows, parser = _extract_ddg_candidates(html, limit=limit)

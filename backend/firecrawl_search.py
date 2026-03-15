@@ -170,48 +170,111 @@ def _decode_ddg_url(url: str) -> str:
     return url
 
 
-def duckduckgo_search(query: str, limit: int = 8) -> list[dict]:
+def _extract_ddg_candidates(html: str, limit: int = 8) -> tuple[list[dict], str]:
+    rows = []
+    seen = set()
+
+    # Strategy 1: html.duckduckgo.com result blocks
+    blocks = re.findall(r'(?s)<div class="result.*?</div>\s*</div>', html)
+    for block in blocks:
+        m_link = re.search(r'<a[^>]*class="result__a"[^>]*href="([^"]+)"', block)
+        if not m_link:
+            continue
+        raw_link = unescape(m_link.group(1))
+        link = _decode_ddg_url(raw_link)
+        if not link.startswith("http") or link in seen:
+            continue
+        seen.add(link)
+
+        m_title = re.search(r'<a[^>]*class="result__a"[^>]*>(.*?)</a>', block, re.DOTALL)
+        title = _strip_html(m_title.group(1)) if m_title else "Untitled"
+
+        m_snip = re.search(r'<a[^>]*class="result__snippet"[^>]*>(.*?)</a>', block, re.DOTALL)
+        if not m_snip:
+            m_snip = re.search(r'<div[^>]*class="result__snippet"[^>]*>(.*?)</div>', block, re.DOTALL)
+        snippet = _strip_html(m_snip.group(1)) if m_snip else ""
+
+        rows.append({"title": title, "snippet": snippet, "link": link})
+        if len(rows) >= limit:
+            return rows, "result_blocks"
+
+    # Strategy 2: generic DDG redirect anchors (/l/?uddg=...)
+    for m in re.finditer(r'<a[^>]*href="([^"]*duckduckgo\.com/l/\?[^"]+uddg=[^"]+)"[^>]*>(.*?)</a>', html, re.DOTALL):
+        raw_link = unescape(m.group(1))
+        link = _decode_ddg_url(raw_link)
+        if not link.startswith("http") or link in seen:
+            continue
+        seen.add(link)
+        title = _strip_html(m.group(2)) or "Untitled"
+        rows.append({"title": title, "snippet": "", "link": link})
+        if len(rows) >= limit:
+            return rows, "redirect_anchors"
+
+    # Strategy 3: ultra-loose fallback for direct outbound anchors
+    for m in re.finditer(r'<a[^>]*href="(https?://[^"]+)"[^>]*>(.*?)</a>', html, re.DOTALL):
+        link = unescape(m.group(1)).strip()
+        if "duckduckgo.com" in _host(link):
+            continue
+        if link in seen:
+            continue
+        seen.add(link)
+        title = _strip_html(m.group(2)) or "Untitled"
+        rows.append({"title": title, "snippet": "", "link": link})
+        if len(rows) >= limit:
+            return rows, "generic_anchors"
+
+    return rows, "no_match"
+
+
+def duckduckgo_search(query: str, limit: int = 8, return_meta: bool = False):
     """
     Scrape DuckDuckGo HTML results and return raw candidates:
     [{title, snippet, link}]
     """
-    search_url = "https://html.duckduckgo.com/html/"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                       "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     }
-    data = {"q": query}
+    meta = {
+        "engine": "duckduckgo",
+        "endpoint": "",
+        "parser": "",
+        "errors": [],
+        "sample": "",
+    }
+    endpoints = [
+        ("html_post", "https://html.duckduckgo.com/html/", "post"),
+        ("lite_get", "https://lite.duckduckgo.com/lite/", "get"),
+    ]
     try:
-        res = requests.post(search_url, headers=headers, data=data, timeout=18)
-        res.raise_for_status()
-        html = res.text
-
-        # Parse each result block from DDG HTML endpoint.
-        blocks = re.findall(r'(?s)<div class="result.*?</div>\s*</div>', html)
-        rows = []
-        for block in blocks:
-            m_link = re.search(r'<a[^>]*class="result__a"[^>]*href="([^"]+)"', block)
-            if not m_link:
+        for label, url, method in endpoints:
+            try:
+                if method == "post":
+                    res = requests.post(
+                        url,
+                        headers={**headers, "Content-Type": "application/x-www-form-urlencoded"},
+                        data={"q": query},
+                        timeout=18,
+                    )
+                else:
+                    res = requests.get(url, headers=headers, params={"q": query}, timeout=18)
+                res.raise_for_status()
+                html = res.text or ""
+                rows, parser = _extract_ddg_candidates(html, limit=limit)
+                meta["endpoint"] = label
+                meta["parser"] = parser
+                meta["sample"] = re.sub(r"\s+", " ", html[:220]).strip()
+                if rows:
+                    return (rows, meta) if return_meta else rows
+            except Exception as e:
+                meta["errors"].append(f"{label}:{str(e)[:180]}")
                 continue
-            raw_link = unescape(m_link.group(1))
-            link = _decode_ddg_url(raw_link)
-
-            m_title = re.search(r'<a[^>]*class="result__a"[^>]*>(.*?)</a>', block, re.DOTALL)
-            title = _strip_html(m_title.group(1)) if m_title else "Untitled"
-
-            m_snip = re.search(r'<a[^>]*class="result__snippet"[^>]*>(.*?)</a>', block, re.DOTALL)
-            if not m_snip:
-                m_snip = re.search(r'<div[^>]*class="result__snippet"[^>]*>(.*?)</div>', block, re.DOTALL)
-            snippet = _strip_html(m_snip.group(1)) if m_snip else ""
-
-            rows.append({"title": title, "snippet": snippet, "link": link})
-            if len(rows) >= limit:
-                break
-        return rows
+        return ([], meta) if return_meta else []
     except Exception as e:
         logger.warning("DuckDuckGo scrape failed: %s", e)
-        return []
+        meta["errors"].append(f"fatal:{str(e)[:180]}")
+        return ([], meta) if return_meta else []
 
 
 def firecrawl_search(query: str, limit: int = 3, return_meta: bool = False):
@@ -226,7 +289,11 @@ def firecrawl_search(query: str, limit: int = 3, return_meta: bool = False):
 
     allowed_domains = _allowed_domains()
     try:
-        candidates = duckduckgo_search(query, limit=max(limit * 4, 10))
+        candidates, ddg_meta = duckduckgo_search(query, limit=max(limit * 4, 10), return_meta=True)
+        meta["search_endpoint"] = ddg_meta.get("endpoint", "")
+        meta["search_parser"] = ddg_meta.get("parser", "")
+        if ddg_meta.get("errors"):
+            meta["search_errors"] = ddg_meta.get("errors", [])
         meta["candidates"] = len(candidates)
         if not candidates:
             meta.update({"status": "unavailable", "reason": "no_search_results"})

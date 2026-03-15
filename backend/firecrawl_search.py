@@ -66,6 +66,14 @@ def _host(url: str) -> str:
         return ""
 
 
+def _is_pdf_url(url: str) -> bool:
+    try:
+        path = (urlparse(url).path or "").lower()
+        return path.endswith(".pdf")
+    except Exception:
+        return False
+
+
 def _is_allowed_url(url: str, allowed_domains: list[str]) -> bool:
     host = _host(url)
     return any(host == d or host.endswith(f".{d}") for d in allowed_domains)
@@ -168,15 +176,19 @@ def firecrawl_search(query: str, limit: int = 3, return_meta: bool = False):
                 meta["filtered_out"] += 1
                 continue
             seen_links.add(url)
-            try:
-                content = _cloudflare_markdown(url)
-                if not content:
-                    scraped = _firecrawl_client.scrape(url=url, formats=["markdown", "summary"])
-                    content = _extract_content(scraped)
-            except Exception as scrape_error:
-                logger.warning("Firecrawl scrape failed for %s: %s", url, scrape_error)
-                meta["scrape_failures"] += 1
-                content = ""
+            # PDF scraping is often slow/flaky; rely on search metadata for these.
+            if _is_pdf_url(url):
+                content = snippet[:500]
+            else:
+                try:
+                    content = _cloudflare_markdown(url)
+                    if not content:
+                        scraped = _firecrawl_client.scrape(url=url, formats=["markdown", "summary"])
+                        content = _extract_content(scraped)
+                except Exception as scrape_error:
+                    logger.warning("Firecrawl scrape failed for %s: %s", url, scrape_error)
+                    meta["scrape_failures"] += 1
+                    content = ""
 
             results.append({
                 "title": title,

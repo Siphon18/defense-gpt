@@ -32,6 +32,16 @@ def _trust_label(url: str) -> str:
     return "medium"
 
 
+def _is_quota_error(message: str) -> bool:
+    msg = (message or "").lower()
+    return (
+        "quota exceeded" in msg
+        or "rate limit" in msg
+        or "resource_exhausted" in msg
+        or "429" in msg
+    )
+
+
 def _extract_json(text: str) -> dict:
     text = (text or "").strip()
     if not text:
@@ -124,7 +134,13 @@ def google_grounding_search(
                 response = model.generate_content(prompt, tools=tools, **kwargs)
                 break
             except Exception as e:
-                tool_errors.append(str(e))
+                err = str(e)
+                tool_errors.append(err)
+                # Fail fast on quota/rate-limit errors instead of trying extra tool variants.
+                if _is_quota_error(err):
+                    meta.update({"status": "error", "reason": "google_grounding_quota_exceeded"})
+                    logger.warning("Gemini grounding quota exceeded: %s", err)
+                    return ([], meta) if return_meta else []
                 continue
 
         if response is None:

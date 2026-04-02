@@ -149,7 +149,7 @@ export default function MessageBubble({
   const isUser = message.role === 'user'
   
   // Create a pseudo-random serial number based on index to look tactical
-  const messageSerial = \`OP-\${String(messageIndex * 137).padStart(4, '0')}\`
+  const messageSerial = `OP-${String(messageIndex * 137).padStart(4, '0')}`
   const threatLevel = message.content && message.content.toLowerCase().includes('wrong') ? 'ELEVATED' : 'NOMINAL'
 
   let previousUserPrompt = ''
@@ -174,18 +174,18 @@ export default function MessageBubble({
       className="py-6"
     >
       <div className="max-w-5xl mx-auto px-3 sm:px-4">
-        <div className={\`flex gap-3 sm:gap-4 \${isUser ? 'flex-row-reverse' : 'flex-row'}\`}>
+        <div className={`flex gap-3 sm:gap-4 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
           
           {/* Avatar */}
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1 }}
-            className={\`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 mt-1 \${
+            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 mt-1 ${
               isUser
               ? 'bg-[#00ffff]/10 border border-[#00ffff]/30 shadow-[0_0_15px_rgba(0,255,255,0.1)]'
               : 'bg-[#00ff41]/15 border border-[#00ff41]/40 shadow-[0_0_20px_rgba(0,255,65,0.2)]'
-            }\`}
+            }`}
           >
             {isUser ? (
               <span className="text-[10px] sm:text-[11px] text-[#00ffff] font-black uppercase tracking-tighter">CMD</span>
@@ -195,12 +195,12 @@ export default function MessageBubble({
           </motion.div>
 
           {/* Content */}
-          <div className={\`flex-1 min-w-0 \${isUser ? 'flex flex-col items-end' : 'flex flex-col items-start'}\`}>
+          <div className={`flex-1 min-w-0 ${isUser ? 'flex flex-col items-end' : 'flex flex-col items-start'}`}>
             
-            <div className={\`flex items-center gap-3 mb-1.5 font-mono \${isUser ? 'justify-end' : 'justify-start'}\`}>
-               <span className={\`text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] \${
+            <div className={`flex items-center gap-3 mb-1.5 font-mono ${isUser ? 'justify-end' : 'justify-start'}`}>
+               <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] ${
                   isUser ? 'text-[#00ffff]/70' : 'text-[#00ff41]/70'
-               }\`}>
+               }`}>
                 {isUser ? 'COMMAND UPLINK' : 'SYSTEM RESPONSE'}
                </span>
                {!isUser && (
@@ -222,9 +222,9 @@ export default function MessageBubble({
               </div>
             ) : (
               <motion.div
-                className={\`glass-card rounded-2xl rounded-tl-sm px-4 sm:px-6 py-4 sm:py-5 border-l-4 \${
+                className={`glass-card rounded-2xl rounded-tl-sm px-4 sm:px-6 py-4 sm:py-5 border-l-4 ${
                     threatLevel === 'ELEVATED' ? 'border-[#ffb700]/70' : 'border-[#00ff41]/50'
-                } max-w-full sm:max-w-[85%] relative overflow-hidden bg-[#0A120C]/80\`}
+                } max-w-full sm:max-w-[85%] relative overflow-hidden bg-[#0A120C]/80`}
               >
                   {/* Decorative corner accents */}
                  <div className="absolute top-0 right-0 w-8 h-8 border-t border-r border-[#00ff41]/20 rounded-tr-2xl pointer-events-none opacity-50" />
@@ -272,7 +272,7 @@ export default function MessageBubble({
                 </button>
                 <button
                   onClick={() => setToolsOpen(v => !v)}
-                  className={\`flex items-center gap-1.5 text-[10px] font-bold tracking-widest uppercase transition-colors duration-300 \${toolsOpen ? 'text-[#00ffff]' : 'text-[#00ffff]/40 hover:text-[#00ffff]'}\`}
+                  className={`flex items-center gap-1.5 text-[10px] font-bold tracking-widest uppercase transition-colors duration-300 ${toolsOpen ? 'text-[#00ffff]' : 'text-[#00ffff]/40 hover:text-[#00ffff]'}`}
                 >
                   <ChevronDown size={12} className={toolsOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
                   COMMAND OPTIONS

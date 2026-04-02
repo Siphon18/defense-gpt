@@ -1,6 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { ArrowRight, Shield, BookOpen, MessageSquare, Award, Radar } from 'lucide-react'
+import { ArrowRight, Shield, BookOpen, MessageSquare, Award, Target } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 export default function LandingPage() {
@@ -132,7 +132,7 @@ export default function LandingPage() {
             className="mt-32 max-w-6xl mx-auto w-full"
         >
           <div className="flex items-center justify-center gap-3 mb-12">
-             <Radar className="w-5 h-5 text-[#00ffff]/70" />
+             <Target className="w-5 h-5 text-[#00ffff]/70" />
              <h2 className="text-sm font-mono uppercase tracking-[0.3em] text-[#00ffff]/70">Core Capabilities Detected</h2>
           </div>
           

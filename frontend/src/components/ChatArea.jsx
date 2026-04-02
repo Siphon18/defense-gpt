@@ -585,19 +585,20 @@ export default function ChatArea({
             animate={{ opacity: 1, y: 0 }}
             className="max-w-3xl mx-auto px-4 py-5"
           >
-            <div className="ml-11 glass-card border border-[#00ff41]/15 rounded-xl px-4 py-3 max-w-md">
+            <div className="ml-11 glass-card border border-[#00ffff]/20 rounded-xl px-5 py-4 max-w-md shadow-[0_0_20px_rgba(0,255,255,0.05)] bg-[#0a1410]/80">
               {showWebSearchAnimation && (
-                <div className="mb-3 pb-3 border-b border-[#00ff41]/10">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-[10px] text-[#00ff41]/60 font-mono uppercase tracking-[0.18em]">
-                      Searching Trusted Sources
+                <div className="mb-4 pb-3 border-b border-[#00ffff]/15 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-16 h-1 bg-[#00ffff]/30 rounded-full" />
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <span className="text-[10px] text-[#00ffff] font-mono uppercase tracking-[0.25em] font-bold">
+                      Establishing Uplink
                     </span>
-                    <span className="text-[10px] text-[#00ff41]/45 font-mono uppercase tracking-wider">
-                      LIVE
+                    <span className="text-[9px] text-[#00ffff]/70 font-mono uppercase tracking-[0.2em] animate-pulse bg-[#00ffff]/10 px-2 py-0.5 rounded-sm border border-[#00ffff]/20">
+                      SECURE
                     </span>
                   </div>
 
-                  <div className="mt-2 flex items-center gap-2">
+                  <div className="mt-3 flex items-center gap-2">
                     {[
                       { code: 'G', label: 'Grounding' },
                       { code: 'F', label: 'Fallback' },
@@ -605,12 +606,12 @@ export default function ChatArea({
                     ].map((node, idx) => (
                       <motion.div
                         key={node.code}
-                        className="h-6 px-2 rounded-full border border-[#00ff41]/25 bg-[#00ff41]/5 text-[10px] text-[#00ff41]/70 font-mono flex items-center gap-1"
+                        className="h-6 px-2 rounded-sm border border-[#00ffff]/30 bg-[#00ffff]/5 text-[10px] text-[#00ffff]/80 font-mono flex items-center gap-1"
                         initial={{ opacity: 0.35, scale: 0.96 }}
                         animate={{ opacity: [0.35, 1, 0.35], scale: [0.96, 1.03, 0.96] }}
                         transition={{ duration: 1.3, delay: idx * 0.2, repeat: Infinity, ease: 'easeInOut' }}
                       >
-                        <span className="inline-block w-3.5 h-3.5 rounded-full bg-[#00ff41]/15 border border-[#00ff41]/30 text-center leading-[12px] text-[9px]">
+                        <span className="inline-block w-3 h-3 bg-[#00ffff]/20 text-center leading-[12px] text-[8px] font-black">
                           {node.code}
                         </span>
                         {node.label}
@@ -618,44 +619,48 @@ export default function ChatArea({
                     ))}
                   </div>
 
-                  <div className="mt-2 h-1 w-full bg-[#00ff41]/10 rounded-full overflow-hidden">
+                  <div className="mt-3 h-[2px] w-full bg-[#00ffff]/10 overflow-hidden relative">
                     <motion.div
-                      className="h-full bg-gradient-to-r from-transparent via-[#00ff41]/70 to-transparent"
-                      initial={{ x: '-40%' }}
-                      animate={{ x: '140%' }}
-                      transition={{ duration: 1.1, repeat: Infinity, ease: 'linear' }}
+                      className="absolute inset-y-0 left-0 bg-[#00ffff] shadow-[0_0_8px_#00ffff]"
+                      initial={{ width: '0%' }}
+                      animate={{ width: '100%' }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
                     />
                   </div>
                 </div>
               )}
 
-              <div className="flex items-center gap-3">
-                <div className="flex gap-2">
-                  <span className="typing-radar-dot" />
-                  <span className="typing-radar-dot" />
-                  <span className="typing-radar-dot" />
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                   <Radar size={16} className="text-[#00ffff] animate-spin" style={{ animationDuration: '3s' }} />
+                  <span className="text-[10px] text-[#00ffff]/60 font-mono uppercase tracking-widest font-bold">
+                    Decrypting Payload...
+                  </span>
                 </div>
-                <span className="text-[10px] text-[#00ff41]/40 font-mono uppercase tracking-wider">
-                  Processing intel...
-                </span>
-              </div>
 
-              <div className="mt-2 text-[11px] text-gray-400 font-mono">
-                {loadingStages[loadingStageIndex]}
-              </div>
+                <div className="text-[11px] text-[#00ffff]/40 font-mono pl-7 border-l border-[#00ffff]/20">
+                  <motion.div
+                     key={loadingStageIndex}
+                     initial={{ opacity: 0, x: -5 }}
+                     animate={{ opacity: 1, x: 0 }}
+                     className="uppercase tracking-widest"
+                  >
+                     &gt; {loadingStages[loadingStageIndex]}
+                  </motion.div>
+                </div>
 
-              <div className="mt-2 h-1.5 w-full bg-[#00ff41]/10 rounded-full overflow-hidden">
-                <motion.div
-                  key={loadingStageIndex}
-                  initial={{ width: '12%' }}
-                  animate={{ width: `${Math.min(22 + loadingStageIndex * 18, 95)}%` }}
-                  transition={{ duration: 0.7, ease: 'easeOut' }}
-                  className="h-full bg-[#00ff41]/55"
-                />
-              </div>
-
-              <div className="mt-2 text-[10px] text-[#00ff41]/35 font-mono uppercase tracking-wider">
-                Elapsed: {loadingElapsedSec}s
+                <div className="mt-1 flex items-center gap-2 pl-7">
+                    <div className="flex-1 h-1 bg-[#00ffff]/10 rounded-full overflow-hidden">
+                      <motion.div
+                        key={loadingStageIndex}
+                        initial={{ width: '12%' }}
+                        animate={{ width: `${Math.min(22 + loadingStageIndex * 18, 95)}%` }}
+                        transition={{ duration: 0.7, ease: 'easeOut' }}
+                        className="h-full bg-[#00ffff]"
+                      />
+                    </div>
+                    <span className="text-[9px] text-[#00ffff]/50 font-mono uppercase">T+{loadingElapsedSec}s</span>
+                </div>
               </div>
             </div>
           </motion.div>

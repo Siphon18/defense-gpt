@@ -11,7 +11,7 @@ function generateId() {
 
 export async function getChats() {
   try {
-    const res = await fetch('/api/chats')
+    const res = await fetch('/api/chats', { credentials: 'same-origin' })
     if (res.status === 401) {
       // Unauthenticated — fall back to localStorage
       return getChatsLocal()
@@ -37,6 +37,7 @@ export async function saveChat(chat) {
 
     const res = await fetch('/api/chats', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(safeChat),
     })
@@ -55,7 +56,7 @@ export async function saveChat(chat) {
 
 export async function deleteChat(id) {
   try {
-    const res = await fetch(`/api/chats/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/chats/${id}`, { method: 'DELETE', credentials: 'same-origin' })
     if (res.status === 401) {
       deleteChatLocal(id)
       return

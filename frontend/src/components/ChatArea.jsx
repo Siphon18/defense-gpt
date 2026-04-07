@@ -1,6 +1,6 @@
 "use client"
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Square, ArrowDown, Sparkles, Mic, Paperclip, X, Image as ImageIcon } from 'lucide-react'
+import { Send, Square, ArrowDown, Sparkles, Mic, Paperclip, X, Image as ImageIcon, Radar } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import MessageBubble from './MessageBubble'
 import { askStream } from '@/lib/api'

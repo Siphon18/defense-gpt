@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
@@ -42,9 +42,9 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const chat = await request.json()
+        const chat = await request.json().catch(() => null)
         if (!chat || typeof chat !== 'object') {
-            return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+            return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 })
         }
         if (!Array.isArray(chat.messages)) {
             return NextResponse.json({ error: 'messages must be an array' }, { status: 400 })

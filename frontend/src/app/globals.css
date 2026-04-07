@@ -38,12 +38,12 @@
 
 @keyframes scanLine {
   0% {
-    top: -2px;
+    transform: translateY(-100%);
     opacity: 1;
   }
 
   100% {
-    top: 100%;
+    transform: translateY(100%);
     opacity: 0;
   }
 }
@@ -196,6 +196,7 @@
     linear-gradient(90deg, rgba(0, 255, 65, 0.03) 1px, transparent 1px);
   background-size: 40px 40px;
   animation: gridScroll 20s linear infinite;
+  will-change: background-position;
   pointer-events: none;
   z-index: 0;
 }
@@ -208,6 +209,8 @@
   right: 0;
   height: 2px;
   background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.5), transparent);
+  transform: translateY(-100%);
+  will-change: transform, opacity;
   animation: scanLine 4s linear infinite;
   z-index: 1;
   pointer-events: none;
@@ -221,6 +224,7 @@
   background: rgba(0, 255, 65, 0.4);
   border-radius: 50%;
   animation: particleFloat linear infinite;
+  will-change: transform, opacity;
   pointer-events: none;
 }
 

@@ -62,12 +62,12 @@ export default function WelcomeScreen({ stats, onQuickPrompt }) {
   return (
     <div className="flex-1 min-h-0 flex flex-col items-center px-4 py-6 sm:py-12 overflow-y-auto relative">
       {/* Floating particles */}
-      {[...Array(6)].map((_, i) => (
+      {[...Array(4)].map((_, i) => (
         <div
           key={i}
           className="particle"
           style={{
-            left: `${15 + i * 14}%`,
+            left: `${18 + i * 18}%`,
             animationDuration: `${8 + i * 3}s`,
             animationDelay: `${i * 1.5}s`,
           }}

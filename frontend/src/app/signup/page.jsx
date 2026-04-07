@@ -58,8 +58,8 @@ export default function SignupPage() {
       {/* Background Effects */}
       <div className="absolute inset-0 scan-line pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-[#00ff41]/5 to-transparent pointer-events-none" />
-      {[...Array(6)].map((_, i) => (
-        <div key={i} className="particle" style={{ left: `${80 - i * 15}%`, animationDuration: `${6 + i * 2}s`, animationDelay: `${i * 0.5}s` }} />
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="particle" style={{ left: `${80 - i * 16}%`, animationDuration: `${6 + i * 2}s`, animationDelay: `${i * 0.5}s` }} />
       ))}
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">

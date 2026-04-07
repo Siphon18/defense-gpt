@@ -21,8 +21,8 @@ export default function LandingPage() {
       
       {/* Tactical Grid Overlay */}
       <div className="absolute inset-0 scan-line pointer-events-none" />
-      {[...Array(15)].map((_, i) => (
-        <div key={i} className="particle" style={{ left: `${Math.random() * 100}%`, animationDuration: `${5 + Math.random() * 5}s`, animationDelay: `${Math.random() * 3}s` }} />
+      {[...Array(7)].map((_, i) => (
+        <div key={i} className="particle" style={{ left: `${Math.random() * 100}%`, animationDuration: `${6 + Math.random() * 5}s`, animationDelay: `${Math.random() * 3}s` }} />
       ))}
 
       {/* Navigation */}

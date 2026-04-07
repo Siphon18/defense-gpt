@@ -78,8 +78,8 @@ function LoginForm() {
       {/* Background Effects */}
       <div className="absolute inset-0 scan-line pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-[#00ff41]/5 to-transparent pointer-events-none" />
-      {[...Array(6)].map((_, i) => (
-        <div key={i} className="particle" style={{ left: `${20 + i * 15}%`, animationDuration: `${7 + i * 2}s`, animationDelay: `${i}s` }} />
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="particle" style={{ left: `${20 + i * 16}%`, animationDuration: `${7 + i * 2}s`, animationDelay: `${i}s` }} />
       ))}
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">

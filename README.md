@@ -1,3 +1,14 @@
+---
+title: Defense GPT — Indian Defense Exam Preparation AI
+emoji: "🎖️"
+colorFrom: emerald
+colorTo: teal
+sdk: docker
+sdk_version: "0.0.0"
+app_file: Dockerfile
+pinned: false
+---
+
 # 🎖️ Defense GPT — Indian Defense Exam Preparation AI
 
 An AI-powered study assistant built with **RAG (Retrieval-Augmented Generation)** to help you ace Indian defense exams. Just drop your study PDFs and start asking questions!

@@ -1,6 +1,6 @@
 "use client"
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Square, ArrowDown, Sparkles, Mic, Paperclip, X, Image as ImageIcon, Radar } from 'lucide-react'
+import { Send, Square, ArrowDown, Sparkles, Mic, Paperclip, X, Image as ImageIcon, Radar, Lock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import MessageBubble from './MessageBubble'
 import { askStream } from '@/lib/api'
@@ -27,6 +27,10 @@ export default function ChatArea({
   const [loadingElapsedSec, setLoadingElapsedSec] = useState(0)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [toasts, setToasts] = useState([])
+  const [usage, setUsage] = useState(0)
+  const [usageLimit, setUsageLimit] = useState(8)
+  const [locked, setLocked] = useState(false)
+  const [showLimitModal, setShowLimitModal] = useState(false)
   const [lastLatencyMs, setLastLatencyMs] = useState(null)
   const requestStartedAtRef = useRef(0)
 
@@ -107,6 +111,72 @@ export default function ChatArea({
       }
     }
   }, [])
+
+  // Fetch usage on mount
+  useEffect(() => {
+    const fetchUsage = async () => {
+      try {
+        const res = await fetch('/api/usage')
+        const data = await res.json()
+        if (data && data.authenticated === true) {
+          setUsage(data.usage || 0)
+          setUsageLimit(data.limit || 8)
+          if ((data.usage || 0) >= (data.limit || 8)) {
+            setLocked(true)
+          }
+        } else {
+          // unauthenticated: check localStorage
+          const local = parseInt(localStorage.getItem('defensegpt_usage_local') || '0', 10)
+          setUsage(local)
+          setUsageLimit(data.limit || 8)
+          if (local >= (data.limit || 8)) setLocked(true)
+        }
+      } catch (e) {
+        console.error('Failed to fetch usage', e)
+      }
+    }
+    fetchUsage()
+  }, [])
+
+  // Try to increment usage before sending; returns true if allowed
+  const tryIncrementUsage = async () => {
+    try {
+      const res = await fetch('/api/usage', { method: 'POST' })
+      if (res.status === 200) {
+        const data = await res.json()
+        setUsage(data.usage || 0)
+        setUsageLimit(data.limit || 8)
+        if ((data.usage || 0) >= (data.limit || 8)) setLocked(true)
+        return true
+      }
+      if (res.status === 401) {
+        // unauthenticated: fallback to localStorage
+        const key = 'defensegpt_usage_local'
+        const cur = parseInt(localStorage.getItem(key) || '0', 10)
+        const next = cur + 1
+        localStorage.setItem(key, String(next))
+        setUsage(next)
+        if (next >= usageLimit) {
+          setLocked(true)
+          setShowLimitModal(true)
+          return false
+        }
+        return true
+      }
+      if (res.status === 403) {
+        const data = await res.json().catch(() => ({}))
+        setUsage(data.usage || usage)
+        setShowLimitModal(true)
+        setLocked(true)
+        return false
+      }
+      // Other errors
+      return false
+    } catch (e) {
+      console.error('Usage increment failed', e)
+      return false
+    }
+  }
 
   const toggleListening = () => {
     if (!recognitionRef.current) {
@@ -221,6 +291,17 @@ export default function ChatArea({
     const activeImage = overrideImage || image
     if (!query && !activeImage) return
     if (isLoading) return
+
+    if (locked) {
+      setShowLimitModal(true)
+      return
+    }
+
+    const allowed = await tryIncrementUsage()
+    if (!allowed) {
+      // tryIncrementUsage will set modal/locked as needed
+      return
+    }
 
     setInput('')
 
@@ -360,6 +441,7 @@ export default function ChatArea({
 
   const handleCreateQuizFromAnswer = (assistantContent) => {
     if (!assistantContent || isLoading) return
+    if (locked) { setShowLimitModal(true); return }
     const prompt = `Create a 5-question MCQ quiz from your previous answer. Include 4 options per question, the correct option, and a short explanation.\n\nAnswer:\n${assistantContent.slice(0, 3000)}`
     setMessages(prev => [...prev, { role: 'user', content: 'Create a 5-question quiz from that answer.' }])
     handleSend(prompt)
@@ -464,7 +546,7 @@ export default function ChatArea({
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => { if (locked) { setShowLimitModal(true); return } ; fileInputRef.current?.click() }}
             className="p-1.5 rounded-lg text-[#00ff41]/30 hover:text-[#00ff41]/70 hover:bg-[#00ff41]/5 transition-all duration-300 shrink-0"
             title="Attach image recon"
           >
@@ -475,7 +557,7 @@ export default function ChatArea({
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            onClick={toggleListening}
+            onClick={() => { if (locked) { setShowLimitModal(true); return } ; toggleListening() }}
             className={`p-1.5 rounded-lg transition-all duration-300 shrink-0 ${isListening
               ? 'text-red-400 bg-red-500/10 shadow-[0_0_15px_rgba(239,68,68,0.3)] animate-pulse border border-red-500/30'
               : 'text-[#00ff41]/30 hover:text-[#00ff41]/70 hover:bg-[#00ff41]/5 border border-transparent'
@@ -490,7 +572,8 @@ export default function ChatArea({
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Enter mission briefing..."
+            placeholder={locked ? 'Allotted reconnaissance exhausted. View plans to continue.' : 'Enter mission briefing...'}
+            disabled={locked}
             rows={1}
             className="flex-1 bg-transparent text-sm text-gray-200 placeholder-gray-600 resize-none outline-none max-h-40 leading-relaxed font-mono"
           />
@@ -508,8 +591,8 @@ export default function ChatArea({
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              onClick={() => handleSend()}
-              disabled={!input.trim()}
+              onClick={() => { if (locked) { setShowLimitModal(true); return } ; handleSend() }}
+              disabled={!input.trim() || locked}
               className="p-2 rounded-lg text-[#00ff41]/50 hover:text-[#00ff41] hover:bg-[#00ff41]/10 border border-[#00ff41]/10 hover:border-[#00ff41]/30 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:border-[#00ff41]/10 transition-all duration-300 shrink-0 hover:shadow-[0_0_12px_rgba(0,255,65,0.15)]"
             >
               <Send size={16} />
@@ -553,6 +636,11 @@ export default function ChatArea({
           </button>
           <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60">
             Last latency: <span className="text-[#00ff41]/90">{lastLatencyMs != null ? `${(lastLatencyMs / 1000).toFixed(1)}s` : '--'}</span>
+          </div>
+          <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60 flex items-center gap-2">
+            <div className="text-[10px]">Usage:</div>
+            <div className="text-[#00ff41]/90 font-mono text-xs">{usage}/{usageLimit}</div>
+            {locked && <Lock className="text-red-400" size={14} />}
           </div>
         </div>
       </div>
@@ -776,6 +864,51 @@ export default function ChatArea({
               >
                 Close
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showLimitModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center px-4"
+            onClick={() => setShowLimitModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass-card border border-[#00ff41]/25 rounded-2xl p-6 w-full max-w-lg"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-red-500/10 rounded-lg flex items-center justify-center border border-red-500/20">
+                  <Lock className="text-red-400" size={22} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white">Access Restricted</h3>
+                  <p className="text-sm text-slate-400 mt-1">Your free reconnaissance allotment is exhausted. To continue using the live assistant and quizzes, view our payment plans.</p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center gap-3 justify-end">
+                <button
+                  onClick={() => { setShowLimitModal(false) }}
+                  className="px-4 py-2 rounded-lg bg-transparent border border-[#00ff41]/20 text-[#00ff41]"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => { window.location.href = '/plans' }}
+                  className="px-4 py-2 rounded-lg bg-[#00ff41] text-black font-bold"
+                >
+                  View Plans
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

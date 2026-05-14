@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { Lock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
     Target,
@@ -46,8 +47,33 @@ export default function QuizPage() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [sidebarOpen, setSidebarOpen] = useState(false)
+    const [usage, setUsage] = useState(0)
+    const [limit, setLimit] = useState(8)
+    const [locked, setLocked] = useState(false)
+
+    useEffect(() => {
+        const fetchUsage = async () => {
+            try {
+                const res = await fetch('/api/usage')
+                const data = await res.json()
+                if (data && data.authenticated === true) {
+                    setUsage(data.usage || 0)
+                    setLimit(data.limit || 8)
+                    if ((data.usage || 0) >= (data.limit || 8)) setLocked(true)
+                } else {
+                    const local = parseInt(localStorage.getItem('defensegpt_usage_local') || '0', 10)
+                    setUsage(local)
+                    if (local >= (data.limit || 8)) setLocked(true)
+                }
+            } catch (e) {
+                console.error('Failed to fetch usage', e)
+            }
+        }
+        fetchUsage()
+    }, [])
 
     const handleStartMission = async () => {
+        if (locked) return
         setLoading(true)
         setError('')
         setStep('loading')
@@ -170,6 +196,11 @@ export default function QuizPage() {
                                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#00ff41]/10 border border-[#00ff41]/20 text-[#00ff41] rounded-full text-xs font-bold tracking-widest uppercase mb-2 animate-glow-pulse">
                                     <Target className="w-4 h-4" /> Mission Briefing
                                 </div>
+                                {locked && (
+                                    <div className="inline-flex items-center gap-2 text-sm text-red-400 font-mono mt-1">
+                                        <Lock className="w-4 h-4" /> Access locked — upgrade to continue
+                                    </div>
+                                )}
                                 <h1 className="text-4xl md:text-5xl font-black text-[#00ff41] tracking-tighter uppercase italic animate-text-glow">
                                     Tactical Evaluation
                                 </h1>
@@ -243,7 +274,7 @@ export default function QuizPage() {
 
                                 <button
                                     onClick={handleStartMission}
-                                    disabled={loading}
+                                    disabled={loading || locked}
                                     className="w-full mt-8 py-4 bg-[#00ff41] text-black font-black uppercase tracking-[0.25em] rounded-xl hover:shadow-[0_0_30px_rgba(0,255,65,0.4)] transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50"
                                 >
                                     {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <>Initialize Alpha <ChevronRight className="w-6 h-6 stroke-[3]" /></>}

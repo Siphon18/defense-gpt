@@ -1,8 +1,8 @@
 ---
 title: Defense GPT — Indian Defense Exam Preparation AI
 emoji: "🎖️"
-colorFrom: emerald
-colorTo: teal
+colorFrom: green
+colorTo: blue
 sdk: docker
 sdk_version: "0.0.0"
 app_file: Dockerfile

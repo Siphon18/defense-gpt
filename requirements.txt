@@ -1,0 +1,26 @@
+# LLM & Embeddings
+groq
+google-generativeai
+sentence-transformers
+torch
+
+# Database
+pymongo[srv]
+
+# PDF Processing
+PyMuPDF
+pdfplumber
+
+# Backend
+fastapi
+uvicorn
+python-multipart
+
+# Utilities
+python-dotenv
+pydantic
+httpx
+requests
+langchain-text-splitters
+firecrawl-py
+beautifulsoup4

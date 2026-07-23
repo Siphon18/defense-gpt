@@ -1,6 +1,8 @@
 import Providers from '@/components/Providers'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import './globals.css'
+import { Analytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 export const metadata = {
   title: 'Defense GPT — AI Study Assistant for Indian Defense Exams',
@@ -21,6 +23,8 @@ export default function RootLayout({ children }) {
         <ErrorBoundary>
           <Providers>{children}</Providers>
         </ErrorBoundary>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )

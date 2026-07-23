@@ -87,27 +87,9 @@ export default function ChatArea({
       try {
         const res = await fetch('/api/usage')
         const data = await res.json()
-        if (data?.authenticated === true) {
-          setUsage(data.usage || 0)
-          setUsageLimit(data.limit || 5)
-          if ((data.usage || 0) >= (data.limit || 5)) setLocked(true)
-        } else {
-          const keyCount = 'defensegpt_usage_local'
-          const keyReset = 'defensegpt_usage_reset_at'
-          const resetAt = parseInt(localStorage.getItem(keyReset) || '0', 10)
-          let local = parseInt(localStorage.getItem(keyCount) || '0', 10)
-
-          // Auto-reset guest counter if 24h window has passed
-          if (Date.now() >= resetAt) {
-            local = 0
-            localStorage.setItem(keyCount, '0')
-            localStorage.setItem(keyReset, String(Date.now() + 24 * 60 * 60 * 1000))
-          }
-
-          setUsage(local)
-          setUsageLimit(data.limit || 5)
-          if (local >= (data.limit || 5)) setLocked(true)
-        }
+        setUsage(data.usage || 0)
+        setUsageLimit(data.limit || 5)
+        if ((data.usage || 0) >= (data.limit || 5)) setLocked(true)
       } catch {}
     }
     fetchUsage()
@@ -123,25 +105,10 @@ export default function ChatArea({
         if ((data.usage || 0) >= (data.limit || 5)) setLocked(true)
         return true
       }
-      if (res.status === 401) {
-        const keyCount = 'defensegpt_usage_local'
-        const keyReset = 'defensegpt_usage_reset_at'
-        const resetAt = parseInt(localStorage.getItem(keyReset) || '0', 10)
-        let cur = parseInt(localStorage.getItem(keyCount) || '0', 10)
-
-        // Check 24h reset for guests
-        if (Date.now() >= resetAt) {
-          cur = 0
-          localStorage.setItem(keyReset, String(Date.now() + 24 * 60 * 60 * 1000))
-        }
-
-        const next = cur + 1
-        localStorage.setItem(keyCount, String(next))
-        setUsage(next)
-        if (next >= usageLimit) { setLocked(true); setShowLimitModal(true); return false }
-        return true
-      }
       if (res.status === 403) {
+        const data = await res.json().catch(() => ({}))
+        if (data.usage) setUsage(data.usage)
+        if (data.limit) setUsageLimit(data.limit)
         setShowLimitModal(true)
         setLocked(true)
         return false

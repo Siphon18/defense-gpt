@@ -79,13 +79,33 @@ def is_static_fact_query(query: str) -> bool:
     return any(term in q for term in STATIC_FACT_TERMS)
 
 
-def has_high_confidence_rag(chunks: list) -> bool:
+def has_high_confidence_rag(chunks: list, query: str = "") -> bool:
     if not chunks:
         return False
     scores = [float(getattr(c, "score", 0.0) or 0.0) for c in chunks[:3]]
     top_score = scores[0]
     avg_score = sum(scores) / len(scores)
-    return top_score >= RAG_CONFIDENCE_TOP_THRESHOLD and avg_score >= RAG_CONFIDENCE_AVG_THRESHOLD
+
+    # 1. Vector score check
+    if top_score < RAG_CONFIDENCE_TOP_THRESHOLD or avg_score < RAG_CONFIDENCE_AVG_THRESHOLD:
+        return False
+
+    top_chunk = chunks[0]
+    top_text = (getattr(top_chunk, "text", "") or "").strip()
+
+    # 2. Reject short page headers/footers (< 120 chars)
+    if len(top_text) < 120:
+        return False
+
+    # 3. Lexical keyword overlap check (reject vector hallucinations on generic noise)
+    if query:
+        query_words = [w.lower() for w in re.findall(r'\w+', query) if len(w) > 3]
+        if query_words:
+            has_overlap = any(w in top_text.lower() for w in query_words)
+            if not has_overlap:
+                return False
+
+    return True
 
 
 def should_use_web_search(query: str, use_live_web_search: bool, chunks: list, context_mode: str = "hybrid") -> tuple[bool, str]:
@@ -104,7 +124,7 @@ def should_use_web_search(query: str, use_live_web_search: bool, chunks: list, c
     if not ((time_intent and entity_intent) or exam_web_intent):
         return False, "requires-time-intent-and-entity"
 
-    if is_static_fact_query(query) and has_high_confidence_rag(chunks):
+    if is_static_fact_query(query) and has_high_confidence_rag(chunks, query):
         return False, "high-confidence-rag-static-query"
 
     return True, "enabled"

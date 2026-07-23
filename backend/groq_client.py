@@ -451,8 +451,10 @@ class SmartRouterClient:
         return models
 
 def _create_client():
-    return SmartRouterClient()
+    try:
+        return SmartRouterClient()
+    except Exception as e:
+        print(f"SmartRouterClient initialization delayed: {e}")
+        return None
 
-
-# Singleton — used everywhere as `groq_client` for backward compatibility
 groq_client = _create_client()

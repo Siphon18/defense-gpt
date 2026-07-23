@@ -52,7 +52,6 @@ export const authOptions = {
       },
     }),
   ],
-  session: { strategy: 'jwt' },
   callbacks: {
     async signIn({ user, account, profile }) {
       if (account?.provider === 'google') {

@@ -1,8 +1,9 @@
-"use client"
+'use client'
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Square, ArrowDown, Sparkles, Mic, Paperclip, X, Image as ImageIcon, Radar, Lock } from 'lucide-react'
+import { Send, Square, ArrowDown, Sparkles, Mic, Paperclip, X, Image as ImageIcon, Lock, Settings2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import MessageBubble from './MessageBubble'
+import SettingsPanel from './SettingsPanel'
 import { askStream } from '@/lib/api'
 
 export default function ChatArea({
@@ -12,6 +13,7 @@ export default function ChatArea({
   const [input, setInput] = useState('')
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   const [suggestions, setSuggestions] = useState([])
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const scrollRef = useRef(null)
   const textareaRef = useRef(null)
   const abortRef = useRef(null)
@@ -24,186 +26,143 @@ export default function ChatArea({
   const fileInputRef = useRef(null)
   const [image, setImage] = useState(null)
   const [loadingStageIndex, setLoadingStageIndex] = useState(0)
-  const [loadingElapsedSec, setLoadingElapsedSec] = useState(0)
-  const [showShortcuts, setShowShortcuts] = useState(false)
   const [toasts, setToasts] = useState([])
   const [usage, setUsage] = useState(0)
   const [usageLimit, setUsageLimit] = useState(8)
   const [locked, setLocked] = useState(false)
   const [showLimitModal, setShowLimitModal] = useState(false)
-  const [lastLatencyMs, setLastLatencyMs] = useState(null)
   const requestStartedAtRef = useRef(0)
 
   const loadingStages = [
-    'Scanning mission brief...',
-    'Retrieving study intel...',
-    'Validating web signals...',
-    'Drafting tactical response...',
-    'Finalizing answer...'
+    'Searching knowledge base...',
+    'Retrieving context...',
+    'Fetching web signals...',
+    'Generating response...',
+    'Finalizing...',
   ]
   const modeOrder = ['hybrid', 'pdf_only', 'web_only']
-  const modeLabel = settings.contextMode === 'pdf_only' ? 'PDF' : settings.contextMode === 'web_only' ? 'WEB' : 'HYBRID'
-  const showWebSearchAnimation = Boolean(
-    isLoading &&
-    settings.useLiveWebSearch &&
-    (settings.contextMode === 'hybrid' || settings.contextMode === 'web_only')
-  )
 
   const pushToast = useCallback((message, type = 'info') => {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2)
     setToasts(prev => [...prev, { id, message, type }])
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id))
-    }, 3000)
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000)
   }, [])
 
-  // Handle image upload logic
+  // Image upload
   const handleImageUpload = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-
-    if (file.size > 5 * 1024 * 1024) {
-      pushToast('Intel file too large. Maximum size is 5MB.', 'error')
-      return
-    }
-
+    if (file.size > 5 * 1024 * 1024) { pushToast('File too large. Maximum 5MB.', 'error'); return }
     const reader = new FileReader()
-    reader.onload = (event) => {
-      setImage(event.target.result)
-    }
+    reader.onload = (ev) => setImage(ev.target.result)
     reader.readAsDataURL(file)
   }
 
   const removeImage = () => {
     setImage(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  // Initialize Speech Recognition
+  // Speech recognition
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition()
-        recognition.continuous = true
-        recognition.interimResults = true
-
-        recognition.onresult = (event) => {
-          let currentTranscript = ''
-          for (let i = 0; i < event.results.length; i++) {
-            currentTranscript += event.results[i][0].transcript
-          }
-          setInput(currentTranscript)
-        }
-
-        recognition.onerror = (event) => {
-          console.error('Speech recognition error:', event.error)
-          setIsListening(false)
-        }
-
-        recognition.onend = () => {
-          setIsListening(false)
-        }
-
-        recognitionRef.current = recognition
-      }
+    if (typeof window === 'undefined') return
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) return
+    const r = new SR()
+    r.continuous = true
+    r.interimResults = true
+    r.onresult = (e) => {
+      let t = ''
+      for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript
+      setInput(t)
     }
+    r.onerror = () => setIsListening(false)
+    r.onend = () => setIsListening(false)
+    recognitionRef.current = r
   }, [])
 
-  // Fetch usage on mount
+  // Fetch usage
   useEffect(() => {
     const fetchUsage = async () => {
       try {
         const res = await fetch('/api/usage')
         const data = await res.json()
-        if (data && data.authenticated === true) {
+        if (data?.authenticated === true) {
           setUsage(data.usage || 0)
-          setUsageLimit(data.limit || 8)
-          if ((data.usage || 0) >= (data.limit || 8)) {
-            setLocked(true)
-          }
+          setUsageLimit(data.limit || 5)
+          if ((data.usage || 0) >= (data.limit || 5)) setLocked(true)
         } else {
-          // unauthenticated: check localStorage
-          const local = parseInt(localStorage.getItem('defensegpt_usage_local') || '0', 10)
+          const keyCount = 'defensegpt_usage_local'
+          const keyReset = 'defensegpt_usage_reset_at'
+          const resetAt = parseInt(localStorage.getItem(keyReset) || '0', 10)
+          let local = parseInt(localStorage.getItem(keyCount) || '0', 10)
+
+          // Auto-reset guest counter if 24h window has passed
+          if (Date.now() >= resetAt) {
+            local = 0
+            localStorage.setItem(keyCount, '0')
+            localStorage.setItem(keyReset, String(Date.now() + 24 * 60 * 60 * 1000))
+          }
+
           setUsage(local)
-          setUsageLimit(data.limit || 8)
-          if (local >= (data.limit || 8)) setLocked(true)
+          setUsageLimit(data.limit || 5)
+          if (local >= (data.limit || 5)) setLocked(true)
         }
-      } catch (e) {
-        console.error('Failed to fetch usage', e)
-      }
+      } catch {}
     }
     fetchUsage()
   }, [])
 
-  // Try to increment usage before sending; returns true if allowed
   const tryIncrementUsage = async () => {
     try {
       const res = await fetch('/api/usage', { method: 'POST' })
       if (res.status === 200) {
         const data = await res.json()
         setUsage(data.usage || 0)
-        setUsageLimit(data.limit || 8)
-        if ((data.usage || 0) >= (data.limit || 8)) setLocked(true)
+        setUsageLimit(data.limit || 5)
+        if ((data.usage || 0) >= (data.limit || 5)) setLocked(true)
         return true
       }
       if (res.status === 401) {
-        // unauthenticated: fallback to localStorage
-        const key = 'defensegpt_usage_local'
-        const cur = parseInt(localStorage.getItem(key) || '0', 10)
-        const next = cur + 1
-        localStorage.setItem(key, String(next))
-        setUsage(next)
-        if (next >= usageLimit) {
-          setLocked(true)
-          setShowLimitModal(true)
-          return false
+        const keyCount = 'defensegpt_usage_local'
+        const keyReset = 'defensegpt_usage_reset_at'
+        const resetAt = parseInt(localStorage.getItem(keyReset) || '0', 10)
+        let cur = parseInt(localStorage.getItem(keyCount) || '0', 10)
+
+        // Check 24h reset for guests
+        if (Date.now() >= resetAt) {
+          cur = 0
+          localStorage.setItem(keyReset, String(Date.now() + 24 * 60 * 60 * 1000))
         }
+
+        const next = cur + 1
+        localStorage.setItem(keyCount, String(next))
+        setUsage(next)
+        if (next >= usageLimit) { setLocked(true); setShowLimitModal(true); return false }
         return true
       }
       if (res.status === 403) {
-        const data = await res.json().catch(() => ({}))
-        setUsage(data.usage || usage)
         setShowLimitModal(true)
         setLocked(true)
         return false
       }
-      // Other errors
       return false
-    } catch (e) {
-      console.error('Usage increment failed', e)
-      return false
-    }
+    } catch { return false }
   }
 
   const toggleListening = () => {
-    if (!recognitionRef.current) {
-      pushToast('Voice recognition is not supported in this browser.', 'error')
-      return
-    }
-
-    if (isListening) {
-      recognitionRef.current.stop()
-      setIsListening(false)
-    } else {
-      setInput('') // clear previous text before fresh dictation
-      recognitionRef.current.start()
-      setIsListening(true)
-    }
+    if (!recognitionRef.current) { pushToast('Voice input not supported in this browser.', 'error'); return }
+    if (isListening) { recognitionRef.current.stop(); setIsListening(false) }
+    else { setInput(''); recognitionRef.current.start(); setIsListening(true) }
   }
 
-  // Drain buffered tokens at typing speed
-  const TYPING_MS = 20 // ms between flushes
-
+  // Token drain
+  const TYPING_MS = 20
   const appendToken = useCallback((text) => {
     setMessages(prev => {
       const msgs = [...prev]
       const last = msgs[msgs.length - 1]
-      if (last?.role === 'assistant') {
-        msgs[msgs.length - 1] = { ...last, content: last.content + text }
-      }
+      if (last?.role === 'assistant') msgs[msgs.length - 1] = { ...last, content: last.content + text }
       return msgs
     })
   }, [setMessages])
@@ -211,10 +170,8 @@ export default function ChatArea({
   const startDraining = useCallback(() => {
     if (drainTimerRef.current) return
     drainTimerRef.current = setInterval(() => {
-      const queue = tokenQueueRef.current
-      if (queue.length > 0) {
-        const token = queue.shift()
-        appendToken(token)
+      if (tokenQueueRef.current.length > 0) {
+        appendToken(tokenQueueRef.current.shift())
       } else if (streamDoneRef.current) {
         clearInterval(drainTimerRef.current)
         drainTimerRef.current = null
@@ -223,59 +180,38 @@ export default function ChatArea({
     }, TYPING_MS)
   }, [appendToken, setIsLoading])
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (drainTimerRef.current) clearInterval(drainTimerRef.current)
-    }
-  }, [])
+  useEffect(() => () => { if (drainTimerRef.current) clearInterval(drainTimerRef.current) }, [])
 
-  // Improve perceived performance with live progress messaging while loading
+  // Loading stage
   useEffect(() => {
-    if (!isLoading) {
-      setLoadingStageIndex(0)
-      setLoadingElapsedSec(0)
-      return
-    }
-
+    if (!isLoading) { setLoadingStageIndex(0); return }
     const startedAt = Date.now()
     const timer = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startedAt) / 1000)
-      setLoadingElapsedSec(elapsed)
       setLoadingStageIndex(Math.min(Math.floor(elapsed / 2), loadingStages.length - 1))
     }, 250)
-
     return () => clearInterval(timer)
   }, [isLoading])
 
-  // Auto-scroll to bottom
+  // Auto-scroll
   const scrollToBottom = useCallback(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [])
+  useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
 
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages, scrollToBottom])
-
-  // Track scroll position for "scroll to bottom" button
   const handleScroll = () => {
     if (!scrollRef.current) return
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
     setShowScrollBtn(scrollHeight - scrollTop - clientHeight > 100)
   }
 
-  // Auto-send when a single user message appears (from quick prompt / first message)
+  // Auto-send for first message
   useEffect(() => {
     if (messages.length === 1 && messages[0].role === 'user' && !isLoading && !sentRef.current) {
       sentRef.current = true
-      // Pass both the content and any attached image from the initial payload
       handleSend(messages[0].content, messages[0].image)
     }
-    if (messages.length === 0) {
-      sentRef.current = false
-    }
+    if (messages.length === 0) sentRef.current = false
   }, [messages, isLoading])
 
   // Auto-resize textarea
@@ -291,47 +227,28 @@ export default function ChatArea({
     const activeImage = overrideImage || image
     if (!query && !activeImage) return
     if (isLoading) return
-
-    if (locked) {
-      setShowLimitModal(true)
-      return
-    }
+    if (locked) { setShowLimitModal(true); return }
 
     const allowed = await tryIncrementUsage()
-    if (!allowed) {
-      // tryIncrementUsage will set modal/locked as needed
-      return
-    }
+    if (!allowed) return
 
     setInput('')
+    if (!overrideImage) removeImage()
 
-    // Clear image from UI if it was manually sent
-    if (!overrideImage) {
-      removeImage()
-    }
-
-    // If no messages yet, delegate to parent to create chat first
     if (messages.length === 0 && !text && onFirstMessage) {
       onFirstMessage(query, activeImage)
       return
     }
 
-    // Add user message if not auto-sent
-    if (!text) {
-      setMessages(prev => [...prev, { role: 'user', content: query, image: activeImage }])
-    }
+    if (!text) setMessages(prev => [...prev, { role: 'user', content: query, image: activeImage }])
 
     setIsLoading(true)
     requestStartedAtRef.current = Date.now()
     setSuggestions([])
     streamDoneRef.current = false
     tokenQueueRef.current = []
-    if (drainTimerRef.current) {
-      clearInterval(drainTimerRef.current)
-      drainTimerRef.current = null
-    }
+    if (drainTimerRef.current) { clearInterval(drainTimerRef.current); drainTimerRef.current = null }
 
-    // Add assistant placeholder
     setMessages(prev => [...prev, { role: 'assistant', content: '', sources: null }])
 
     const chatHistory = messages
@@ -339,319 +256,209 @@ export default function ChatArea({
       .slice(-10)
       .map(m => ({ role: m.role, content: m.content }))
 
-    // Ask stream, passing image
     const controller = askStream(
-      query,
-      settings.examType,
-      settings.model,
-      settings.temperature,
-      settings.topK,
-      settings.sourceFilter,
-      settings.useLiveWebSearch,
-      settings.contextMode,
-      chatHistory,
-      activeImage,
+      query, settings.examType, settings.model, settings.temperature,
+      settings.topK, settings.sourceFilter, settings.useLiveWebSearch,
+      settings.contextMode, chatHistory, activeImage,
       {
-        onToken: (token) => {
-          tokenQueueRef.current.push(token)
-          startDraining()
-        },
+        onToken: (token) => { tokenQueueRef.current.push(token); startDraining() },
         onSources: (sources) => {
           setMessages(prev => {
             const msgs = [...prev]
             const last = msgs[msgs.length - 1]
-            if (last?.role === 'assistant') {
-              msgs[msgs.length - 1] = { ...last, sources }
-            }
+            if (last?.role === 'assistant') msgs[msgs.length - 1] = { ...last, sources }
             return msgs
           })
         },
         onSuggestions: (s) => setSuggestions(s),
         onDone: () => {
-          if (requestStartedAtRef.current) {
-            setLastLatencyMs(Date.now() - requestStartedAtRef.current)
-          }
           streamDoneRef.current = true
           if (tokenQueueRef.current.length === 0) {
-            if (drainTimerRef.current) {
-              clearInterval(drainTimerRef.current)
-              drainTimerRef.current = null
-            }
+            if (drainTimerRef.current) { clearInterval(drainTimerRef.current); drainTimerRef.current = null }
             setIsLoading(false)
           }
         },
         onError: (err) => {
-          if (requestStartedAtRef.current) {
-            setLastLatencyMs(Date.now() - requestStartedAtRef.current)
-          }
           streamDoneRef.current = true
-          if (drainTimerRef.current) {
-            clearInterval(drainTimerRef.current)
-            drainTimerRef.current = null
-          }
-          const remaining = tokenQueueRef.current.splice(0).join('')
+          if (drainTimerRef.current) { clearInterval(drainTimerRef.current); drainTimerRef.current = null }
           setMessages(prev => {
             const msgs = [...prev]
             const last = msgs[msgs.length - 1]
-            if (last?.role === 'assistant') {
-              msgs[msgs.length - 1] = { ...last, content: `Error: ${err}` }
-            }
+            if (last?.role === 'assistant') msgs[msgs.length - 1] = { ...last, content: `Error: ${err}` }
             return msgs
           })
           setIsLoading(false)
         },
       }
     )
-
     abortRef.current = controller
   }
 
   const handleStop = () => {
-    if (abortRef.current) {
-      abortRef.current.abort()
-      abortRef.current = null
-    }
+    abortRef.current?.abort()
+    abortRef.current = null
     streamDoneRef.current = true
-    if (drainTimerRef.current) {
-      clearInterval(drainTimerRef.current)
-      drainTimerRef.current = null
-    }
+    if (drainTimerRef.current) { clearInterval(drainTimerRef.current); drainTimerRef.current = null }
     const remaining = tokenQueueRef.current.splice(0).join('')
-    if (remaining) {
-      appendToken(remaining)
-    }
-    if (requestStartedAtRef.current) {
-      setLastLatencyMs(Date.now() - requestStartedAtRef.current)
-    }
+    if (remaining) appendToken(remaining)
     setIsLoading(false)
   }
 
-  const handleRegenerate = (previousPrompt) => {
-    if (!previousPrompt || isLoading) return
-    setMessages(prev => [...prev, { role: 'user', content: previousPrompt }])
-    handleSend(previousPrompt)
-  }
-
-  const handleSummarize = (assistantContent) => {
-    if (!assistantContent || isLoading) return
-    const prompt = `Summarize your previous answer in 5 crisp bullet points with key terms bolded.\n\nAnswer:\n${assistantContent.slice(0, 3000)}`
-    setMessages(prev => [...prev, { role: 'user', content: 'Summarize that answer in 5 key bullets.' }])
-    handleSend(prompt)
-  }
-
-  const handleCreateQuizFromAnswer = (assistantContent) => {
-    if (!assistantContent || isLoading) return
-    if (locked) { setShowLimitModal(true); return }
-    const prompt = `Create a 5-question MCQ quiz from your previous answer. Include 4 options per question, the correct option, and a short explanation.\n\nAnswer:\n${assistantContent.slice(0, 3000)}`
-    setMessages(prev => [...prev, { role: 'user', content: 'Create a 5-question quiz from that answer.' }])
-    handleSend(prompt)
-  }
-
-  const cycleContextMode = () => {
-    const current = modeOrder.indexOf(settings.contextMode || 'hybrid')
-    const next = modeOrder[(current + 1) % modeOrder.length]
-    settings.setContextMode?.(next)
-  }
+  const handleRegenerate = (p) => { if (!p || isLoading) return; setMessages(prev => [...prev, { role: 'user', content: p }]); handleSend(p) }
+  const handleSummarize = (c) => { if (!c || isLoading) return; const p = `Summarize your previous answer in 5 crisp bullet points with key terms bolded.\n\nAnswer:\n${c.slice(0, 3000)}`; setMessages(prev => [...prev, { role: 'user', content: 'Summarize that in 5 key bullets.' }]); handleSend(p) }
+  const handleCreateQuizFromAnswer = (c) => { if (!c || isLoading) return; if (locked) { setShowLimitModal(true); return }; const p = `Create a 5-question MCQ quiz from your previous answer.\n\nAnswer:\n${c.slice(0, 3000)}`; setMessages(prev => [...prev, { role: 'user', content: 'Create a 5-question quiz from that answer.' }]); handleSend(p) }
 
   const handleKeyDown = (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault()
-      handleSend()
-      return
-    }
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); handleSend(); return }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }
 
   useEffect(() => {
-    const onWindowKeyDown = (e) => {
-      const target = e.target
-      const inEditable = target instanceof HTMLElement && (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable
-      )
-
-      if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault()
-        setShowShortcuts(v => !v)
-        return
-      }
-
-      if (e.key === '/' && !inEditable && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault()
-        textareaRef.current?.focus()
-        return
-      }
-
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault()
-        handleSend()
-        return
-      }
-
-      if (e.key === 'Escape' && isLoading) {
-        e.preventDefault()
-        handleStop()
-      }
+    const onKey = (e) => {
+      const inEditable = e.target instanceof HTMLElement && ['INPUT', 'TEXTAREA'].includes(e.target.tagName)
+      if (e.key === '/' && !inEditable && !e.ctrlKey) { e.preventDefault(); textareaRef.current?.focus() }
+      if (e.key === 'Escape' && isLoading) { e.preventDefault(); handleStop() }
     }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isLoading])
 
-    window.addEventListener('keydown', onWindowKeyDown)
-    return () => window.removeEventListener('keydown', onWindowKeyDown)
-  }, [handleSend, handleStop, isLoading])
-
-  /* ─── Input Bar Component ─── */
+  /* ─── Input bar ─── */
   const inputBarElement = (
     <div
-      className="border-t border-[#00ff41]/10 bg-[#0a0f0a]/90 backdrop-blur-md px-2 sm:px-4 pt-3"
-      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}
+      className="bg-[#0c0d0f]/95 backdrop-blur-md border-t border-white/[0.05] px-3 sm:px-6 pt-3"
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.875rem)' }}
     >
-      <div className="max-w-3xl mx-auto w-full">
+      <div className="max-w-3xl mx-auto w-full relative">
 
-        {/* Image Preview Chip */}
+        {/* Settings panel (anchored above input) */}
+        <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} settings={settings} />
+
+        {/* Image preview */}
         <AnimatePresence>
           {image && (
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="mb-3 inline-flex items-center gap-2 glass-card pr-2 pl-3 py-1.5 rounded-lg border border-[#00ff41]/30 mx-2 sm:mx-0"
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+              className="mb-2 inline-flex items-center gap-2 bg-[#1c1e22] border border-white/[0.08] rounded-lg pl-2.5 pr-1.5 py-1.5"
             >
-              <ImageIcon size={14} className="text-[#00ff41]/70" />
-              <span className="text-xs text-[#00ff41]/70 font-mono">Image attached</span>
-              <img src={image} alt="Upload preview" className="w-8 h-8 object-cover rounded ml-2" />
-              <button
-                onClick={removeImage}
-                className="p-1 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-md transition-colors ml-1"
-              >
-                <X size={14} />
+              <ImageIcon size={13} className="text-[#6b7280]" />
+              <span className="text-xs text-[#6b7280]">Image attached</span>
+              <img src={image} alt="preview" className="w-6 h-6 object-cover rounded ml-1" />
+              <button onClick={removeImage} className="p-1 rounded text-[#4b5563] hover:text-[#ef4444] hover:bg-red-500/10 transition-colors">
+                <X size={12} />
               </button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <div className="glass-input flex items-end gap-1.5 sm:gap-2 rounded-xl px-2 sm:px-4 py-2 sm:py-2.5 mx-1 sm:mx-0">
-          {/* Hidden File Input */}
-          <input
-            type="file"
-            accept="image/*"
-            ref={fileInputRef}
-            onChange={handleImageUpload}
-            className="hidden"
-          />
+        {/* Main input bar */}
+        <motion.div
+          layout
+          className="flex items-end gap-2 bg-[#141518] border border-white/[0.08] rounded-xl px-3 py-2.5 focus-within:border-white/[0.15] transition-all duration-200"
+        >
+          <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageUpload} className="hidden" />
 
-          {/* Attachment button */}
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => { if (locked) { setShowLimitModal(true); return } ; fileInputRef.current?.click() }}
-            className="p-1.5 rounded-lg text-[#00ff41]/30 hover:text-[#00ff41]/70 hover:bg-[#00ff41]/5 transition-all duration-300 shrink-0"
-            title="Attach image recon"
-          >
-            <Paperclip size={16} />
-          </motion.button>
+          {/* Left icons */}
+          <div className="flex items-center gap-1 shrink-0 pb-0.5">
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => { if (locked) { setShowLimitModal(true); return }; fileInputRef.current?.click() }}
+              className="p-1.5 rounded-md text-[#4b5563] hover:text-[#6b7280] hover:bg-white/[0.04] transition-colors"
+              title="Attach image"
+            >
+              <Paperclip size={15} />
+            </motion.button>
 
-          {/* Voice button */}
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => { if (locked) { setShowLimitModal(true); return } ; toggleListening() }}
-            className={`p-1.5 rounded-lg transition-all duration-300 shrink-0 ${isListening
-              ? 'text-red-400 bg-red-500/10 shadow-[0_0_15px_rgba(239,68,68,0.3)] animate-pulse border border-red-500/30'
-              : 'text-[#00ff41]/30 hover:text-[#00ff41]/70 hover:bg-[#00ff41]/5 border border-transparent'
-              }`}
-            title={isListening ? "Stop listening" : "Start voice input"}
-          >
-            <Mic size={16} />
-          </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => { if (locked) { setShowLimitModal(true); return }; toggleListening() }}
+              className={`p-1.5 rounded-md transition-all ${isListening ? 'text-[#ef4444] bg-red-500/10' : 'text-[#4b5563] hover:text-[#6b7280] hover:bg-white/[0.04]'}`}
+              title={isListening ? 'Stop listening' : 'Voice input'}
+            >
+              <Mic size={15} className={isListening ? 'animate-status' : ''} />
+            </motion.button>
+          </div>
 
+          {/* Textarea */}
           <textarea
             ref={textareaRef}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={locked ? 'Allotted reconnaissance exhausted. View plans to continue.' : 'Enter mission briefing...'}
+            placeholder={locked ? 'Usage limit reached. Upgrade to continue.' : 'Ask anything about NDA, CDS, AFCAT…'}
             disabled={locked}
             rows={1}
-            className="flex-1 bg-transparent text-sm text-gray-200 placeholder-gray-600 resize-none outline-none max-h-40 leading-relaxed font-mono"
+            className="flex-1 bg-transparent text-sm text-[#f0f0f0] placeholder-[#374151] resize-none outline-none max-h-40 leading-relaxed font-geist"
           />
 
-          {isLoading ? (
+          {/* Right icons */}
+          <div className="flex items-center gap-1 shrink-0 pb-0.5">
             <motion.button
-              whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              onClick={handleStop}
-              className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-all duration-300 shrink-0"
+              onClick={() => setSettingsOpen(v => !v)}
+              className={`p-1.5 rounded-md transition-colors ${settingsOpen ? 'text-[#22c55e] bg-[#22c55e]/10' : 'text-[#4b5563] hover:text-[#6b7280] hover:bg-white/[0.04]'}`}
+              title="Settings"
             >
-              <Square size={14} />
+              <Settings2 size={15} />
             </motion.button>
-          ) : (
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => { if (locked) { setShowLimitModal(true); return } ; handleSend() }}
-              disabled={!input.trim() || locked}
-              className="p-2 rounded-lg text-[#00ff41]/50 hover:text-[#00ff41] hover:bg-[#00ff41]/10 border border-[#00ff41]/10 hover:border-[#00ff41]/30 disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:border-[#00ff41]/10 transition-all duration-300 shrink-0 hover:shadow-[0_0_12px_rgba(0,255,65,0.15)]"
-            >
-              <Send size={16} />
-            </motion.button>
-          )}
+
+            <AnimatePresence mode="wait">
+              {isLoading ? (
+                <motion.button
+                  key="stop"
+                  initial={{ scale: 0.7, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.7, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={handleStop}
+                  className="p-1.5 rounded-md bg-[#ef4444]/10 text-[#ef4444] hover:bg-[#ef4444]/15 transition-colors border border-[#ef4444]/20"
+                  title="Stop"
+                >
+                  <Square size={14} />
+                </motion.button>
+              ) : (
+                <motion.button
+                  key="send"
+                  initial={{ scale: 0.7, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.7, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => { if (locked) { setShowLimitModal(true); return }; handleSend() }}
+                  disabled={(!input.trim() && !image) || locked}
+                  className="p-1.5 rounded-md bg-[#22c55e] text-[#0c0d0f] hover:bg-[#16a34a] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Send (Enter)"
+                >
+                  <Send size={14} strokeWidth={2.5} />
+                </motion.button>
+              )}
+            </AnimatePresence>
+          </div>
+        </motion.div>
+
+        {/* Usage + hint row */}
+        <div className="flex items-center justify-between mt-1.5 px-1">
+          <span className="text-[11px] text-[#374151] font-geist-mono">
+            {usage}/{usageLimit} messages used
+            {locked && <span className="text-[#ef4444] ml-2">· Limit reached</span>}
+          </span>
+          <span className="text-[11px] text-[#374151] font-geist-mono hidden sm:block">Enter to send · Shift+Enter for newline</span>
         </div>
       </div>
     </div>
   )
 
-  if (hidden) {
-    return inputBarElement
-  }
+  if (hidden) return inputBarElement
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
-      <div className="sticky top-0 z-20 border-b border-[#00ff41]/10 bg-[#0a0f0a]/85 backdrop-blur-md">
-        <div className="max-w-5xl mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-2 flex-wrap">
-          <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60">
-            Model: <span className="text-[#00ff41]/90">{settings.model || 'auto'}</span>
-          </div>
-          <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60">
-            Exam: <span className="text-[#00ff41]/90">{settings.examType || 'General'}</span>
-          </div>
-          <button
-            onClick={() => settings.setUseLiveWebSearch?.(!settings.useLiveWebSearch)}
-            className={`text-[10px] uppercase tracking-[0.18em] font-mono px-2 py-1 rounded-md border ${settings.useLiveWebSearch
-              ? 'text-[#00ff41] border-[#00ff41]/35 bg-[#00ff41]/10'
-              : 'text-gray-400 border-[#00ff41]/10'
-              }`}
-            title="Toggle live web search"
-          >
-            Web {settings.useLiveWebSearch ? 'On' : 'Off'}
-          </button>
-          <button
-            onClick={cycleContextMode}
-            className="text-[10px] uppercase tracking-[0.18em] font-mono px-2 py-1 rounded-md border text-[#00ff41]/90 border-[#00ff41]/25 hover:border-[#00ff41]/45"
-            title="Cycle context mode"
-          >
-            Mode {modeLabel}
-          </button>
-          <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60">
-            Last latency: <span className="text-[#00ff41]/90">{lastLatencyMs != null ? `${(lastLatencyMs / 1000).toFixed(1)}s` : '--'}</span>
-          </div>
-          <div className="text-[10px] uppercase tracking-[0.18em] font-mono text-[#00ff41]/60 flex items-center gap-2">
-            <div className="text-[10px]">Usage:</div>
-            <div className="text-[#00ff41]/90 font-mono text-xs">{usage}/{usageLimit}</div>
-            {locked && <Lock className="text-red-400" size={14} />}
-          </div>
-        </div>
-      </div>
-
+    <div className="flex-1 flex flex-col min-h-0 relative">
       {/* Messages */}
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto"
-      >
-        <div className="divide-y divide-[#00ff41]/5">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto custom-scrollbar">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-2">
           {messages.map((msg, i) => (
             <MessageBubble
               key={i}
@@ -666,124 +473,58 @@ export default function ChatArea({
           ))}
         </div>
 
-        {/* Radar Typing Indicator */}
+        {/* Loading indicator */}
         {isLoading && messages[messages.length - 1]?.content === '' && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="max-w-3xl mx-auto px-4 py-5"
+            className="max-w-3xl mx-auto px-4 sm:px-6 pb-4"
           >
-            <div className="ml-11 glass-card border border-[#00ffff]/20 rounded-xl px-5 py-4 max-w-md shadow-[0_0_20px_rgba(0,255,255,0.05)] bg-[#0a1410]/80">
-              {showWebSearchAnimation && (
-                <div className="mb-4 pb-3 border-b border-[#00ffff]/15 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-16 h-1 bg-[#00ffff]/30 rounded-full" />
-                  <div className="flex items-center justify-between gap-3 mb-2">
-                    <span className="text-[10px] text-[#00ffff] font-mono uppercase tracking-[0.25em] font-bold">
-                      Establishing Uplink
-                    </span>
-                    <span className="text-[9px] text-[#00ffff]/70 font-mono uppercase tracking-[0.2em] animate-pulse bg-[#00ffff]/10 px-2 py-0.5 rounded-sm border border-[#00ffff]/20">
-                      SECURE
-                    </span>
-                  </div>
-
-                  <div className="mt-3 flex items-center gap-2">
-                    {[
-                      { code: 'G', label: 'Grounding' },
-                      { code: 'F', label: 'Fallback' },
-                      { code: 'V', label: 'Verify' },
-                    ].map((node, idx) => (
-                      <motion.div
-                        key={node.code}
-                        className="h-6 px-2 rounded-sm border border-[#00ffff]/30 bg-[#00ffff]/5 text-[10px] text-[#00ffff]/80 font-mono flex items-center gap-1"
-                        initial={{ opacity: 0.35, scale: 0.96 }}
-                        animate={{ opacity: [0.35, 1, 0.35], scale: [0.96, 1.03, 0.96] }}
-                        transition={{ duration: 1.3, delay: idx * 0.2, repeat: Infinity, ease: 'easeInOut' }}
-                      >
-                        <span className="inline-block w-3 h-3 bg-[#00ffff]/20 text-center leading-[12px] text-[8px] font-black">
-                          {node.code}
-                        </span>
-                        {node.label}
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  <div className="mt-3 h-[2px] w-full bg-[#00ffff]/10 overflow-hidden relative">
-                    <motion.div
-                      className="absolute inset-y-0 left-0 bg-[#00ffff] shadow-[0_0_8px_#00ffff]"
-                      initial={{ width: '0%' }}
-                      animate={{ width: '100%' }}
-                      transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-                    />
-                  </div>
+            <div className="pl-0 flex items-start gap-3">
+              <div className="mt-1 shrink-0 w-6 h-6 rounded-md bg-[#22c55e]/10 border border-[#22c55e]/20 flex items-center justify-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-status" />
+              </div>
+              <div className="bg-[#141518] border border-white/[0.06] rounded-xl px-4 py-3 min-w-[140px]">
+                <div className="loading-dots mb-2">
+                  <span /><span /><span />
                 </div>
-              )}
-
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                   <Radar size={16} className="text-[#00ffff] animate-spin" style={{ animationDuration: '3s' }} />
-                  <span className="text-[10px] text-[#00ffff]/60 font-mono uppercase tracking-widest font-bold">
-                    Decrypting Payload...
-                  </span>
-                </div>
-
-                <div className="text-[11px] text-[#00ffff]/40 font-mono pl-7 border-l border-[#00ffff]/20">
-                  <motion.div
-                     key={loadingStageIndex}
-                     initial={{ opacity: 0, x: -5 }}
-                     animate={{ opacity: 1, x: 0 }}
-                     className="uppercase tracking-widest"
-                  >
-                     &gt; {loadingStages[loadingStageIndex]}
-                  </motion.div>
-                </div>
-
-                <div className="mt-1 flex items-center gap-2 pl-7">
-                    <div className="flex-1 h-1 bg-[#00ffff]/10 rounded-full overflow-hidden">
-                      <motion.div
-                        key={loadingStageIndex}
-                        initial={{ width: '12%' }}
-                        animate={{ width: `${Math.min(22 + loadingStageIndex * 18, 95)}%` }}
-                        transition={{ duration: 0.7, ease: 'easeOut' }}
-                        className="h-full bg-[#00ffff]"
-                      />
-                    </div>
-                    <span className="text-[9px] text-[#00ffff]/50 font-mono uppercase">T+{loadingElapsedSec}s</span>
-                </div>
+                <motion.p
+                  key={loadingStageIndex}
+                  initial={{ opacity: 0, x: -4 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="text-[11px] text-[#4b5563] font-geist-mono"
+                >
+                  {loadingStages[loadingStageIndex]}
+                </motion.p>
               </div>
             </div>
           </motion.div>
         )}
 
-        {/* Follow-up suggestion chips */}
+        {/* Suggestions */}
         <AnimatePresence>
           {!isLoading && suggestions.length > 0 && (
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.3 }}
-              className="max-w-3xl mx-auto px-4 pb-4 pt-2"
+              exit={{ opacity: 0, y: -4 }}
+              className="max-w-3xl mx-auto px-4 sm:px-6 pb-4"
             >
               <div className="flex items-center gap-1.5 mb-2">
-                <Sparkles size={12} className="text-[#00ff41]/40" />
-                <span className="text-[10px] text-[#00ff41]/30 font-mono uppercase tracking-wider">
-                  Suggested follow-ups
-                </span>
+                <Sparkles size={11} className="text-[#4b5563]" />
+                <span className="text-[10px] text-[#4b5563] font-geist-mono uppercase tracking-widest">Suggested follow-ups</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {suggestions.map((s, i) => (
                   <motion.button
                     key={i}
-                    initial={{ opacity: 0, scale: 0.9 }}
+                    initial={{ opacity: 0, scale: 0.94 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: i * 0.1, duration: 0.2 }}
-                    onClick={() => {
-                      setSuggestions([])
-                      setInput('')
-                      setMessages(prev => [...prev, { role: 'user', content: s }])
-                      handleSend(s)
-                    }}
-                    className="text-[13px] text-gray-400 glass-card rounded-full px-4 py-2 hover:text-[#00ff41]/80 hover:border-[#00ff41]/30 cursor-pointer transition-all duration-300 hover:shadow-[0_0_12px_rgba(0,255,65,0.08)]"
+                    transition={{ delay: i * 0.07, type: 'spring', stiffness: 400, damping: 25 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => { setSuggestions([]); setInput(''); setMessages(prev => [...prev, { role: 'user', content: s }]); handleSend(s) }}
+                    className="text-xs text-[#6b7280] bg-[#141518] border border-white/[0.07] rounded-lg px-3 py-1.5 hover:text-[#9ca3af] hover:border-white/[0.12] transition-all"
                   >
                     {s}
                   </motion.button>
@@ -798,16 +539,17 @@ export default function ChatArea({
       <AnimatePresence>
         {showScrollBtn && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className="absolute bottom-20 left-1/2 -translate-x-1/2"
+            initial={{ opacity: 0, scale: 0.8, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 8 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+            className="absolute bottom-24 left-1/2 -translate-x-1/2"
           >
             <button
               onClick={scrollToBottom}
-              className="p-2 rounded-full glass border border-[#00ff41]/20 hover:border-[#00ff41]/40 transition-all duration-300 shadow-lg hover:shadow-[0_0_15px_rgba(0,255,65,0.15)]"
+              className="p-2 rounded-full bg-[#1c1e22] border border-white/[0.10] text-[#6b7280] hover:text-white shadow-lg transition-colors hover:bg-[#23262b]"
             >
-              <ArrowDown size={14} className="text-[#00ff41]/60" />
+              <ArrowDown size={14} />
             </button>
           </motion.div>
         )}
@@ -816,18 +558,17 @@ export default function ChatArea({
       {/* Input */}
       {inputBarElement}
 
-      <div className="fixed top-20 right-4 z-50 space-y-2">
+      {/* Toasts */}
+      <div className="fixed top-4 right-4 z-50 space-y-2 pointer-events-none">
         <AnimatePresence>
           {toasts.map(t => (
             <motion.div
               key={t.id}
-              initial={{ opacity: 0, x: 24 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 24 }}
-              className={`px-3 py-2 rounded-lg text-xs font-mono border ${t.type === 'error'
-                ? 'bg-red-500/15 border-red-500/30 text-red-300'
-                : 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#b6ffc9]'
-                }`}
+              initial={{ opacity: 0, x: 20, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 20, scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+              className={`toast pointer-events-auto ${t.type === 'error' ? 'toast-error' : 'toast-success'}`}
             >
               {t.message}
             </motion.div>
@@ -835,40 +576,7 @@ export default function ChatArea({
         </AnimatePresence>
       </div>
 
-      <AnimatePresence>
-        {showShortcuts && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center px-4"
-            onClick={() => setShowShortcuts(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="glass-card border border-[#00ff41]/25 rounded-2xl p-5 w-full max-w-sm"
-            >
-              <h3 className="text-sm font-bold text-white mb-3">Keyboard Shortcuts</h3>
-              <div className="space-y-2 text-xs text-gray-300">
-                <p><span className="text-[#00ff41] font-mono">/</span> Focus prompt input</p>
-                <p><span className="text-[#00ff41] font-mono">Ctrl/Cmd + Enter</span> Send prompt</p>
-                <p><span className="text-[#00ff41] font-mono">Esc</span> Stop streaming</p>
-                <p><span className="text-[#00ff41] font-mono">?</span> Toggle this panel</p>
-              </div>
-              <button
-                onClick={() => setShowShortcuts(false)}
-                className="mt-4 px-3 py-2 text-xs rounded-lg bg-[#00ff41] text-black font-semibold"
-              >
-                Close
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+      {/* Limit modal */}
       <AnimatePresence>
         {showLimitModal && (
           <motion.div
@@ -879,32 +587,35 @@ export default function ChatArea({
             onClick={() => setShowLimitModal(false)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="glass-card border border-[#00ff41]/25 rounded-2xl p-6 w-full max-w-lg"
+              initial={{ scale: 0.94, y: 12 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.94, y: 12 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-[#141518] border border-white/[0.09] rounded-2xl p-6 w-full max-w-md shadow-2xl"
+              style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}
             >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-red-500/10 rounded-lg flex items-center justify-center border border-red-500/20">
-                  <Lock className="text-red-400" size={22} />
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-[#ef4444]/10 border border-[#ef4444]/20 flex items-center justify-center shrink-0">
+                  <Lock size={18} className="text-[#ef4444]" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-white">Access Restricted</h3>
-                  <p className="text-sm text-slate-400 mt-1">Your free reconnaissance allotment is exhausted. To continue using the live assistant and quizzes, view our payment plans.</p>
+                  <h3 className="text-base font-semibold text-white mb-1">Usage limit reached</h3>
+                  <p className="text-sm text-[#6b7280] leading-relaxed">
+                    You've used all {usageLimit} free messages. Upgrade to continue with unlimited queries, live web search, and more.
+                  </p>
                 </div>
               </div>
-
-              <div className="mt-6 flex items-center gap-3 justify-end">
+              <div className="mt-5 flex items-center gap-2.5 justify-end">
                 <button
-                  onClick={() => { setShowLimitModal(false) }}
-                  className="px-4 py-2 rounded-lg bg-transparent border border-[#00ff41]/20 text-[#00ff41]"
+                  onClick={() => setShowLimitModal(false)}
+                  className="px-4 py-2 rounded-lg text-sm text-[#6b7280] hover:text-white hover:bg-white/[0.05] border border-white/[0.07] transition-colors"
                 >
-                  Close
+                  Dismiss
                 </button>
                 <button
-                  onClick={() => { window.location.href = '/plans' }}
-                  className="px-4 py-2 rounded-lg bg-[#00ff41] text-black font-bold"
+                  onClick={() => window.location.href = '/plans'}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold bg-[#22c55e] text-[#0c0d0f] hover:bg-[#16a34a] transition-colors"
                 >
                   View Plans
                 </button>

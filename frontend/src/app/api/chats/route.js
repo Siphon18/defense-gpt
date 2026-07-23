@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
 
+export const dynamic = 'force-dynamic'
+
 function sanitizeMessage(message) {
     if (!message || typeof message !== 'object') return null
     const clean = {}

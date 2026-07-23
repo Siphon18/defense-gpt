@@ -1,75 +1,287 @@
-"use client"
-import React, { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+'use client'
+import React, { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion'
 import Link from 'next/link'
 import {
-  Shield,
-  PanelLeftClose,
-  PanelLeft,
-  Plus,
-  Trash2,
-  MessageSquare,
-  LogOut,
-  Radar,
-  Crosshair,
-  Target,
-  Menu,
-  X
+  Plus, Trash2, LogOut, BookOpen, MessageSquare, ChevronRight,
+  PanelLeftClose, PanelLeft, X, Menu, BookMarked, CreditCard,
+  CheckCircle2, AlertCircle, Loader2
 } from 'lucide-react'
 
-const EXAMS = ['General', 'NDA', 'CDS', 'AFCAT', 'Indian Navy', 'CAPF', 'SSB']
+const EXAMS = ['General', 'NDA', 'CDS', 'AFCAT', 'Navy', 'CAPF', 'SSB']
+
+// ── Magnetic button hook ──────────────────────────────────────────
+function MagneticButton({ children, className, onClick, disabled }) {
+  const ref = useRef(null)
+  const x = useMotionValue(0)
+  const y = useMotionValue(0)
+  const sx = useSpring(x, { stiffness: 200, damping: 20 })
+  const sy = useSpring(y, { stiffness: 200, damping: 20 })
+
+  const handleMouse = (e) => {
+    if (!ref.current) return
+    const rect = ref.current.getBoundingClientRect()
+    const cx = rect.left + rect.width / 2
+    const cy = rect.top + rect.height / 2
+    x.set((e.clientX - cx) * 0.25)
+    y.set((e.clientY - cy) * 0.25)
+  }
+
+  const reset = () => { x.set(0); y.set(0) }
+
+  return (
+    <motion.button
+      ref={ref}
+      style={{ x: sx, y: sy }}
+      onMouseMove={handleMouse}
+      onMouseLeave={reset}
+      onClick={onClick}
+      disabled={disabled}
+      className={className}
+      whileTap={{ scale: 0.97 }}
+    >
+      {children}
+    </motion.button>
+  )
+}
 
 export default function Sidebar({
   open, onToggle, chats = [], activeChatId, onSelectChat, onNewChat, onDeleteChat,
   examType, setExamType, session, onSignOut, saveStatus = 'idle',
 }) {
   const [isMobile, setIsMobile] = useState(false)
+  const [hoverDelete, setHoverDelete] = useState(null)
 
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 1024)
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
+    const check = () => setIsMobile(window.innerWidth < 1024)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
   }, [])
 
-  // Close sidebar on mobile when a chat is selected
   const handleSelectChat = (id) => {
     onSelectChat(id)
     if (isMobile) onToggle()
   }
 
-  const sidebarVariants = {
-    open: {
-      width: isMobile ? '100%' : 280,
-      x: 0,
-      opacity: 1,
-      transition: { duration: 0.3, ease: "circOut" }
-    },
-    closed: {
-      width: 0,
-      x: -300,
-      opacity: 0,
-      transition: { duration: 0.3, ease: "circIn" }
-    }
-  }
+  const saveIndicator = {
+    saving: { color: '#f59e0b', label: 'Saving' },
+    saved:  { color: '#22c55e', label: 'Saved' },
+    error:  { color: '#ef4444', label: 'Error' },
+    idle:   { color: '#374151', label: 'Idle' },
+  }[saveStatus] || { color: '#374151', label: 'Idle' }
+
+  const sidebarContent = (
+    <div className="flex flex-col h-full w-[260px] bg-[#141518] border-r border-white/[0.06]">
+
+      {/* ── Logo row ── */}
+      <div className="flex items-center justify-between px-5 h-14 border-b border-white/[0.05] shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-[#22c55e]/10 border border-[#22c55e]/20 flex items-center justify-center">
+            <BookOpen size={14} className="text-[#22c55e]" />
+          </div>
+          <span className="font-bold text-sm text-white tracking-tight font-geist">
+            Defense GPT
+          </span>
+        </div>
+        {isMobile && (
+          <button onClick={onToggle} className="p-1.5 rounded-md text-[#6b7280] hover:text-white hover:bg-white/[0.05] transition-colors">
+            <X size={16} />
+          </button>
+        )}
+      </div>
+
+      {/* ── New chat button ── */}
+      <div className="px-3 pt-3 shrink-0">
+        <MagneticButton
+          onClick={onNewChat}
+          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg bg-[#22c55e] text-[#0c0d0f] text-sm font-semibold hover:bg-[#16a34a] transition-colors"
+        >
+          <Plus size={16} strokeWidth={2.5} />
+          New Chat
+        </MagneticButton>
+      </div>
+
+      {/* ── Exam selector ── */}
+      <div className="px-3 pt-5 shrink-0">
+        <p className="text-[10px] font-geist-mono font-semibold text-[#4b5563] uppercase tracking-widest mb-2 px-1">
+          Exam Focus
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {EXAMS.map((ex, i) => (
+            <motion.button
+              key={ex}
+              layout
+              onClick={() => setExamType(ex)}
+              whileTap={{ scale: 0.94 }}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium font-geist-mono transition-all duration-150 ${
+                examType === ex
+                  ? 'bg-[#22c55e]/10 text-[#22c55e] border border-[#22c55e]/25'
+                  : 'bg-transparent text-[#6b7280] border border-white/[0.05] hover:border-white/[0.10] hover:text-[#9ca3af]'
+              }`}
+            >
+              {ex}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Chat history ── */}
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-3 pt-5">
+        <p className="text-[10px] font-geist-mono font-semibold text-[#4b5563] uppercase tracking-widest mb-2 px-1">
+          History
+        </p>
+
+        <AnimatePresence initial={false}>
+          {chats.length === 0 ? (
+            <motion.div
+              key="empty"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="px-1 py-6 text-center"
+            >
+              <MessageSquare size={18} className="mx-auto mb-2 text-[#374151]" />
+              <p className="text-xs text-[#4b5563] font-geist">No chats yet</p>
+            </motion.div>
+          ) : (
+            <div className="space-y-0.5">
+              {chats.map((chat, i) => (
+                <motion.div
+                  key={chat.id}
+                  layout
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -8 }}
+                  transition={{ delay: i * 0.04, type: 'spring', stiffness: 300, damping: 28 }}
+                  onMouseEnter={() => setHoverDelete(chat.id)}
+                  onMouseLeave={() => setHoverDelete(null)}
+                  onClick={() => handleSelectChat(chat.id)}
+                  className={`group relative flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all duration-150 ${
+                    activeChatId === chat.id
+                      ? 'bg-white/[0.06] text-white'
+                      : 'text-[#6b7280] hover:bg-white/[0.03] hover:text-[#9ca3af]'
+                  }`}
+                >
+                  {/* Active indicator */}
+                  <AnimatePresence>
+                    {activeChatId === chat.id && (
+                      <motion.div
+                        layoutId="chat-indicator"
+                        initial={{ scaleY: 0 }}
+                        animate={{ scaleY: 1 }}
+                        exit={{ scaleY: 0 }}
+                        className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-[#22c55e] rounded-full"
+                        transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                      />
+                    )}
+                  </AnimatePresence>
+
+                  <span className="flex-1 text-[13px] truncate leading-tight">{chat.title || 'Untitled Chat'}</span>
+
+                  <AnimatePresence>
+                    {hoverDelete === chat.id && (
+                      <motion.button
+                        initial={{ opacity: 0, scale: 0.7 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.7 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                        onClick={(e) => { e.stopPropagation(); onDeleteChat(chat.id) }}
+                        className="p-1 rounded text-[#4b5563] hover:text-[#ef4444] hover:bg-red-500/10 transition-colors shrink-0"
+                      >
+                        <Trash2 size={13} />
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* ── Bottom links + user ── */}
+      <div className="px-3 pb-4 pt-3 border-t border-white/[0.05] shrink-0 space-y-1">
+
+        {/* Quiz link */}
+        <Link href="/quiz" onClick={() => isMobile && onToggle()}>
+          <motion.div
+            whileHover={{ x: 3 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[#6b7280] hover:text-[#9ca3af] hover:bg-white/[0.03] cursor-pointer transition-colors text-[13px]"
+          >
+            <BookMarked size={14} />
+            Practice Quiz
+            <ChevronRight size={12} className="ml-auto opacity-40" />
+          </motion.div>
+        </Link>
+
+        {/* Plans link */}
+        <Link href="/plans" onClick={() => isMobile && onToggle()}>
+          <motion.div
+            whileHover={{ x: 3 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[#6b7280] hover:text-[#9ca3af] hover:bg-white/[0.03] cursor-pointer transition-colors text-[13px]"
+          >
+            <CreditCard size={14} />
+            Plans
+            <ChevronRight size={12} className="ml-auto opacity-40" />
+          </motion.div>
+        </Link>
+
+        {/* Save status + user row */}
+        {session?.user?.email ? (
+          <div className="flex items-center gap-2 px-3 py-2 mt-1">
+            <div
+              className="w-1.5 h-1.5 rounded-full shrink-0 animate-status"
+              style={{ backgroundColor: saveIndicator.color }}
+            />
+            <span className="text-[11px] text-[#4b5563] font-geist-mono flex-1 truncate">
+              {session.user.email}
+            </span>
+            <button
+              onClick={onSignOut}
+              className="p-1 rounded text-[#374151] hover:text-[#ef4444] hover:bg-red-500/10 transition-colors"
+              title="Sign out"
+            >
+              <LogOut size={13} />
+            </button>
+          </div>
+        ) : (
+          <Link href="/login">
+            <div className="flex items-center gap-2 px-3 py-2 mt-1 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors cursor-pointer">
+              <div className="w-1.5 h-1.5 rounded-full shrink-0 bg-[#22c55e]" />
+              <span className="flex-1 font-geist-mono text-[11px] text-[#9ca3af]">Guest Mode</span>
+              <span className="text-[11px] text-[#22c55e] font-semibold">Sign In →</span>
+            </div>
+          </Link>
+        )}
+      </div>
+    </div>
+  )
 
   return (
     <>
+      {/* Desktop — always visible */}
+      <div className="hidden lg:flex h-screen sticky top-0 shrink-0">
+        {sidebarContent}
+      </div>
+
+      {/* Mobile toggle button */}
       <AnimatePresence>
         {!open && (
           <motion.button
-            initial={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
+            exit={{ opacity: 0, x: -12 }}
             onClick={onToggle}
-            className="fixed top-6 left-0 z-50 p-2.5 py-3 rounded-r-xl rounded-l-none glass border border-l-0 border-[#00ff41]/30 hover:border-[#00ff41]/70 shadow-[5px_0_20px_rgba(0,255,65,0.15)] group bg-[#070e09]/90 backdrop-blur-md flex items-center justify-center"
+            className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-[#141518] border border-white/[0.08] text-[#6b7280] hover:text-white transition-colors shadow-lg"
           >
-            {isMobile ? <Menu size={20} className="text-[#00ff41]" /> : <PanelLeft size={20} className="text-[#00ff41]/60 group-hover:text-[#00ff41]" />}
+            <Menu size={18} />
           </motion.button>
         )}
       </AnimatePresence>
 
-      {/* Mobile Backdrop */}
+      {/* Mobile backdrop */}
       <AnimatePresence>
         {open && isMobile && (
           <motion.div
@@ -77,171 +289,23 @@ export default function Sidebar({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onToggle}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[55]"
+            className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
           />
         )}
       </AnimatePresence>
 
+      {/* Mobile drawer */}
       <AnimatePresence>
-        {open && (
-          <motion.aside
-            variants={sidebarVariants}
-            initial="closed"
-            animate="open"
-            exit="closed"
-            className={`fixed lg:static h-screen glass border-r border-[#00ff41]/10 flex flex-col overflow-hidden z-[60] ${isMobile ? 'max-w-[300px]' : ''}`}
+        {open && isMobile && (
+          <motion.div
+            initial={{ x: -280 }}
+            animate={{ x: 0 }}
+            exit={{ x: -280 }}
+            transition={{ type: 'spring', stiffness: 350, damping: 32 }}
+            className="lg:hidden fixed left-0 top-0 h-full z-50 shadow-2xl"
           >
-            {/* Scan line effect */}
-            <div className="absolute inset-0 scan-line pointer-events-none opacity-20" />
-
-            <div className={`flex flex-col h-full relative z-10 w-full ${isMobile ? 'max-w-[300px]' : 'max-w-[280px]'}`}>
-              {/* Header */}
-              <div className="flex items-center justify-between px-5 py-5 border-b border-[#00ff41]/10">
-                <div className="flex items-center gap-3">
-                  <motion.div
-                    animate={{ rotate: [0, 360] }}
-                    transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-                  >
-                    <Shield size={22} className="text-[#00ff41] drop-shadow-[0_0_8px_rgba(0,255,65,0.5)]" />
-                  </motion.div>
-                  <span className="font-black text-sm text-[#00ff41] tracking-widest uppercase italic animate-text-glow">
-                    Defense GPT
-                  </span>
-                </div>
-                <button
-                  onClick={onToggle}
-                  className="p-2 rounded-lg hover:bg-[#00ff41]/10 transition-all duration-300 text-[#00ff41]/50 hover:text-[#00ff41]"
-                >
-                  {isMobile ? <X size={20} /> : <PanelLeftClose size={18} />}
-                </button>
-              </div>
-
-              <div className="px-5 py-2 border-b border-[#00ff41]/10">
-                <p className="text-[10px] font-mono uppercase tracking-[0.18em] flex items-center gap-2">
-                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${saveStatus === 'saving' ? 'bg-yellow-400' : saveStatus === 'saved' ? 'bg-[#00ff41]' : saveStatus === 'error' ? 'bg-red-400' : 'bg-slate-600'}`} />
-                  <span className="text-[#00ff41]/45">
-                    {saveStatus === 'saving' ? 'Saving chat...' : saveStatus === 'saved' ? 'Saved' : saveStatus === 'error' ? 'Save issue' : 'Sync idle'}
-                  </span>
-                </p>
-              </div>
-
-              {/* New Mission / Quiz */}
-              <div className="px-4 pt-4 space-y-3">
-                <motion.button
-                  whileHover={{ scale: 1.02, x: 2 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={onNewChat}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl btn-tactical border border-[#00ff41]/20 text-xs font-black uppercase tracking-widest text-[#00ff41]/80 hover:text-[#00ff41] bg-[#00ff41]/5"
-                >
-                  <Plus size={16} strokeWidth={3} />
-                  <span>New Mission</span>
-                </motion.button>
-
-                <Link href="/quiz" onClick={() => isMobile && onToggle()}>
-                  <motion.button
-                    whileHover={{ scale: 1.02, x: 2 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="w-full mt-2 flex items-center gap-3 px-4 py-3 rounded-xl border border-[#00ff41]/20 bg-[#00ff41]/5 text-xs font-black uppercase tracking-widest text-[#00ff41] group hover:border-[#00ff41]/50 transition-all shadow-[0_0_15px_rgba(0,255,65,0.05)]"
-                  >
-                    <Target size={16} strokeWidth={3} className="group-hover:rotate-45 transition-transform" />
-                    <span>Tactical Evaluation</span>
-                  </motion.button>
-                </Link>
-              </div>
-
-              {/* Exam Focus */}
-              <div className="px-4 pt-6">
-                <div className="flex items-center gap-2 mb-3">
-                  <Crosshair size={12} className="text-[#00ff41]/40" />
-                  <label className="text-[10px] font-black text-[#00ff41]/30 uppercase tracking-[0.2em]">
-                    Target Exam
-                  </label>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {EXAMS.map(ex => (
-                    <motion.button
-                      key={ex}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setExamType(ex)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${examType === ex
-                        ? 'bg-[#00ff41]/20 text-[#00ff41] border border-[#00ff41]/40 shadow-[0_0_10px_rgba(0,255,65,0.1)]'
-                        : 'bg-[#0a140c]/40 text-slate-500 border border-[#00ff41]/5 hover:border-[#00ff41]/20 hover:text-[#00ff41]/70'
-                        }`}
-                    >
-                      {ex}
-                    </motion.button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Chat History */}
-              <div className="flex-1 overflow-y-auto px-4 pt-6 min-h-0 custom-scrollbar">
-                <div className="flex items-center gap-2 mb-3">
-                  <Radar size={12} className="text-[#00ff41]/40" />
-                  <label className="text-[10px] font-black text-[#00ff41]/30 uppercase tracking-[0.2em]">
-                    Mission Log
-                  </label>
-                </div>
-                <div className="space-y-1 pb-4">
-                  {chats.map(chat => (
-                    <motion.div
-                      key={chat.id}
-                      whileHover={{ x: 4 }}
-                      className={`group flex items-center gap-3 px-3 py-3.5 rounded-xl cursor-pointer transition-all duration-300 border ${activeChatId === chat.id
-                        ? 'bg-[#00ff41]/10 text-[#00ff41] border-[#00ff41]/20 shadow-[inset_0_0_15px_rgba(0,255,65,0.05)]'
-                        : 'text-slate-500 hover:bg-[#00ff41]/5 hover:text-white border-transparent'
-                        }`}
-                      onClick={() => handleSelectChat(chat.id)}
-                    >
-                      <div className={`w-1.5 h-1.5 rounded-full transition-all ${activeChatId === chat.id ? 'bg-[#00ff41] shadow-[0_0_8px_rgba(0,255,65,1)] scale-125' : 'bg-slate-800'
-                        }`} />
-                      <MessageSquare size={14} className="shrink-0 opacity-40 group-hover:opacity-100" />
-                      <span className="flex-1 text-sm font-medium truncate tracking-tight">{chat.title || 'New Mission'}</span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onDeleteChat(chat.id) }}
-                        className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-all duration-200"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </motion.div>
-                  ))}
-                  {chats.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-10 space-y-2 opacity-20">
-                      <Radar size={24} className="animate-pulse" />
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em]">Idle Spectrum</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* User / Sign Out */}
-              <div className="px-4 pb-4 border-t border-[#00ff41]/10 pt-4 bg-[#050806]/40">
-                {session?.user && (
-                  <div className="flex items-center gap-3 px-3 py-2 mb-3 bg-[#00ff41]/5 rounded-xl border border-[#00ff41]/10">
-                    <div className="w-8 h-8 rounded-lg bg-[#00ff41]/10 border border-[#00ff41]/20 flex items-center justify-center text-xs text-[#00ff41] font-black italic shadow-[0_0_10px_rgba(0,255,65,0.1)]">
-                      {session.user.name?.[0]?.toUpperCase() || session.user.email?.[0]?.toUpperCase() || '?'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-black text-[#00ff41] leading-none uppercase truncate mb-0.5">Operative</p>
-                      <p className="text-[10px] text-slate-500 truncate font-mono">
-                        {session.user.email && session.user.email.length > 20 ? session.user.email.substring(0, 17) + '...' : session.user.email || 'AUTHENTICATED'}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                <motion.button
-                  whileHover={{ scale: 1.02, x: 4 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={onSignOut}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 hover:text-red-500 hover:bg-red-500/5 border border-transparent hover:border-red-500/10 transition-all duration-300"
-                >
-                  <LogOut size={14} />
-                  Terminate Connection
-                </motion.button>
-              </div>
-            </div>
-          </motion.aside>
+            {sidebarContent}
+          </motion.div>
         )}
       </AnimatePresence>
     </>

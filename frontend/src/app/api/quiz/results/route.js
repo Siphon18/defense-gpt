@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
 
+export const dynamic = 'force-dynamic'
+
 // POST /api/quiz/results — Save a quiz result
 export async function POST(request) {
     try {

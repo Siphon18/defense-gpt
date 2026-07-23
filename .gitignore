@@ -17,7 +17,8 @@ frontend/.env.local
 frontend/.env.production
 frontend/.env.*.local
 
-# ─── Database (now on Atlas) ───
+# ─── Large PDF Files (Vector database stored in MongoDB Atlas) ───
+pdfs/
 chroma_db/
 
 # ─── Node / Next.js ───

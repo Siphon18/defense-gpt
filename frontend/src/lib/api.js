@@ -47,7 +47,7 @@ export async function askQuestion(question, examType, model, temperature, topK, 
  * Stream a response from the backend using SSE.
  * Returns an AbortController so the caller can cancel mid-stream.
  */
-export function askStream(question, examType, model, temperature, topK, sourceFilter, useLiveWebSearch, contextMode, chatHistory, imageData, { onToken, onSources, onSuggestions, onDone, onError }) {
+export function askStream(question, examType, model, temperature, topK, sourceFilter, useLiveWebSearch, contextMode, chatHistory, imageData, { onToken, onAgentStep, onSources, onSuggestions, onDone, onError }) {
   const controller = new AbortController()
 
   ; (async () => {
@@ -90,6 +90,7 @@ export function askStream(question, examType, model, temperature, topK, sourceFi
           try {
             const data = JSON.parse(payload)
             if (data.type === 'token' && data.content) onToken?.(data.content)
+            if (data.type === 'agent_step' && data.step) onAgentStep?.(data.step)
             if (data.type === 'sources' && data.sources) onSources?.(data.sources)
             if (data.type === 'suggestions' && data.suggestions) onSuggestions?.(data.suggestions)
             if (data.type === 'error') onError?.(data.content || 'Unknown error')

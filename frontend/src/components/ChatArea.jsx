@@ -262,6 +262,7 @@ export default function ChatArea({
       settings.contextMode, chatHistory, activeImage,
       {
         onToken: (token) => { tokenQueueRef.current.push(token); startDraining() },
+        onAgentStep: (step) => setAgentStep(step),
         onSources: (sources) => {
           setMessages(prev => {
             const msgs = [...prev]
@@ -489,12 +490,12 @@ export default function ChatArea({
                   <span /><span /><span />
                 </div>
                 <motion.p
-                  key={loadingStageIndex}
+                  key={agentStep || loadingStageIndex}
                   initial={{ opacity: 0, x: -4 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="text-[11px] text-[#4b5563] font-geist-mono"
+                  className="text-[11px] text-[#22c55e] font-geist-mono font-medium"
                 >
-                  {loadingStages[loadingStageIndex]}
+                  {agentStep || loadingStages[loadingStageIndex]}
                 </motion.p>
               </div>
             </div>

@@ -31,6 +31,7 @@ export default function ChatArea({
   const [usageLimit, setUsageLimit] = useState(8)
   const [locked, setLocked] = useState(false)
   const [showLimitModal, setShowLimitModal] = useState(false)
+  const [agentStep, setAgentStep] = useState('')
   const requestStartedAtRef = useRef(0)
 
   const loadingStages = [
@@ -200,6 +201,7 @@ export default function ChatArea({
     if (!allowed) return
 
     setInput('')
+    setAgentStep('')
     if (!overrideImage) removeImage()
 
     if (messages.length === 0 && !text && onFirstMessage) {

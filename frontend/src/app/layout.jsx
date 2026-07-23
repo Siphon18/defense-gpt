@@ -5,10 +5,8 @@ import './globals.css'
 export const metadata = {
   title: 'Defense GPT — AI Study Assistant for Indian Defense Exams',
   description: 'Precise, RAG-powered answers for NDA, CDS, AFCAT, Navy & SSB exam preparation.',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'Defense GPT',
+  other: {
+    'mobile-web-app-capable': 'yes',
   },
 }
 

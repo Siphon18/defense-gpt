@@ -15,7 +15,12 @@ const CONTEXT_MODES = [
   { id: 'web_only', icon: Globe,    label: 'Web Only',  desc: 'Live search only' },
 ]
 
-export default function SettingsPanel({ open, onClose, settings }) {
+export default function SettingsPanel({
+  open,
+  onClose,
+  settings,
+  availableModels = [],
+}) {
   const panelRef = useRef(null)
 
   // Close on outside click

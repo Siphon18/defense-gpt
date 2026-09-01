@@ -478,27 +478,40 @@ def trigger_ingest(background_tasks: BackgroundTasks):
 @router.get("/models")
 def get_models():
     """Get available LLM models."""
+    model_info = {
+        "openai/gpt-oss-120b": {
+            "label": "GPT-OSS 120B",
+            "badge": "Powerful",
+        },
+        "openai/gpt-oss-20b": {
+            "label": "GPT-OSS 20B",
+            "badge": "Fast",
+        },
+        "qwen/qwen3.6-27b": {
+            "label": "Qwen 3.6 27B",
+            "badge": "Fast",
+        },
+    }
+
+    models = []
+
+    for model_id in groq_client.get_available_models():
+        info = model_info.get(model_id, {})
+        models.append({
+            "id": model_id,
+            "label": info.get("label", model_id),
+            "badge": (
+                "Default"
+                if model_id == groq_client.default_model
+                else info.get("badge")
+            ),
+        })
+
     return {
-        "models": [
-            {
-                "id": "openai/gpt-oss-120b",
-                "label": "GPT-OSS 120B",
-                "badge": "Powerful",
-            },
-            {
-                "id": "openai/gpt-oss-20b",
-                "label": "GPT-OSS 20B",
-                "badge": "Default",
-            },
-            {
-                "id": "qwen/qwen3.6-27b",
-                "label": "Qwen 3.6 27B",
-                "badge": "Fast",
-            },
-        ],
+        "models": models,
         "default": groq_client.default_model,
 }
-
+    
 @router.get("/pdfs")
 def list_pdfs():
     """List uploaded PDFs."""

@@ -425,4 +425,45 @@ class SmartRouterClient:
                 return f"**Reconnaissance Failed:** The Intelligence Server (Gemini Vision) rejected the image attachment due to a quota limit or region restriction. Please verify your Google AI Studio billing/quota limits. Error: {str(e)}"
         
         # Route pure text queries to Groq to save Gemini quotas
-        groq_model = self.groq.default_model if not m
+        groq_model = self.groq.default_model if not model or "gemini" in model else model
+        return self.groq.generate_response(query, context, exam_type, chat_history, groq_model, temperature, max_tokens)
+
+    def generate_json(self, system_prompt: str, model=None, temperature=0.7, max_tokens=2048) -> str:
+        # We route json generation exclusively to Groq since it's fast and supports json objects well
+        groq_model = self.groq.default_model if not model or "gemini" in model else model
+        return self.groq.generate_json(system_prompt, groq_model, temperature, max_tokens)
+
+    def stream_response(self, query, context="", exam_type="General",
+                        chat_history=None, model=None, temperature=0.3,
+                        max_tokens=2048, image_data=None):
+        if image_data:
+            if not self.gemini:
+                yield "**Reconnaissance Failed:** Image prompts require Gemini, but GEMINI_API_KEY is not configured."
+                return
+            gemini_model = "gemini-2.0-flash" if not model or "gemini" not in model else model
+            try:
+                yield from self.gemini.stream_response(query, context, exam_type, chat_history, gemini_model, temperature, max_tokens, image_data)
+            except Exception:
+                yield "**Reconnaissance Failed:** The Intelligence Server (Gemini Vision API) rejected the image attachment due to a quota limit (Limit: 0) or region restriction on your account. Please verify your Google AI Studio billing/quota limits. In the meantime, please send text-only prompts!"
+            return
+            
+        groq_model = self.groq.default_model if not model or "gemini" in model else model
+        yield from self.groq.stream_response(query, context, exam_type, chat_history, groq_model, temperature, max_tokens)
+
+    def generate_suggestions(self, query: str, answer: str, exam_type: str = "General") -> list[str]:
+        return self.groq.generate_suggestions(query, answer, exam_type)
+
+    def get_available_models(self) -> list[str]:
+        models = self.groq.get_available_models()
+        if self.gemini:
+            models += self.gemini.get_available_models()
+        return models
+
+def _create_client():
+    try:
+        return SmartRouterClient()
+    except Exception as e:
+        print(f"SmartRouterClient initialization delayed: {e}")
+        return None
+
+groq_client = _create_client()

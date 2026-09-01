@@ -19,6 +19,7 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [examType, setExamType] = useState('General')
   const [model, setModel] = useState(null)
+  const [availableModels, setAvailableModels] = useState([])
   const [temperature, setTemperature] = useState(0.3)
   const [topK, setTopK] = useState(5)
   const [isLoading, setIsLoading] = useState(false)
@@ -56,9 +57,16 @@ export default function ChatPage() {
 
   useEffect(() => { getChats().then(setChats) }, [])
   useEffect(() => {
-    fetchStats().then(setStats).catch(() => {})
-    fetchModels().then(data => { setModel(data.default || data.models?.[0] || null) }).catch(() => {})
-  }, [])
+  fetchStats().then(setStats).catch(() => {})
+
+  fetchModels()
+    .then(data => {
+      const models = data.models || []
+      setAvailableModels(models)
+      setModel(data.default || models[0] || null)
+    })
+    .catch(() => {})
+}, [])
 
   const activeChat = chats.find(c => c.id === activeChatId) || null
   const messages = activeChat?.messages || []
@@ -137,19 +145,20 @@ export default function ChatPage() {
   const showWelcome = messages.length === 0
 
   const settings = {
-    examType,
-    model,
-    setModel,
-    temperature,
-    setTemperature,
-    topK,
-    setTopK,
-    sourceFilter: null,
-    useLiveWebSearch,
-    setUseLiveWebSearch,
-    contextMode,
-    setContextMode,
-  }
+  examType,
+  model,
+  setModel,
+  availableModels,
+  temperature,
+  setTemperature,
+  topK,
+  setTopK,
+  sourceFilter: null,
+  useLiveWebSearch,
+  setUseLiveWebSearch,
+  contextMode,
+  setContextMode,
+}
 
   if (status === 'loading') {
     return (

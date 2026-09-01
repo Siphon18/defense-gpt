@@ -510,17 +510,15 @@ async def ask_stream(request: QueryRequest):
         from backend.agentic_search import agentic_runner
         return StreamingResponse(
             agentic_runner.run_agentic_stream(
-                query=request.query,
-                exam_type=request.exam_type,
-                model=request.model or "llama-3.3-70b-versatile",
-                temperature=request.temperature or 0.3,
-                top_k=request.top_k or 5,
-                use_live_web_search=request.use_live_web_search,
-                context_mode=request.context_mode or "hybrid",
-                chat_history=request.chat_history,
-            ),
-            media_type="text/event-stream"
-        )
+               query=request.query,
+               exam_type=request.exam_type,
+               model=request.model or groq_client.default_model,
+    temperature=request.temperature or 0.3,
+    top_k=request.top_k or 5,
+    use_live_web_search=request.use_live_web_search,
+    context_mode=request.context_mode or "hybrid",
+    chat_history=request.chat_history,
+)
 
     context = ""
     chunks = []

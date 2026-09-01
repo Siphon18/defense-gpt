@@ -3,12 +3,6 @@ import { useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Sliders, Globe, FileText, Layers, Cpu } from 'lucide-react'
 
-const MODELS = [
-  { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B', badge: 'Default' },
-  { id: 'gemma2-9b-it',            label: 'Gemma 2 9B',    badge: 'Fast' },
-  { id: 'mixtral-8x7b-32768',      label: 'Mixtral 8x7B',  badge: null },
-]
-
 const CONTEXT_MODES = [
   { id: 'hybrid',   icon: Layers,   label: 'Hybrid',   desc: 'PDF + Web' },
   { id: 'pdf_only', icon: FileText, label: 'PDF Only', desc: 'Knowledge base only' },
@@ -77,7 +71,7 @@ export default function SettingsPanel({
                   Model
                 </label>
                 <div className="space-y-1">
-                  {MODELS.map((m) => (
+                  {availableModels.map((m) => (
                     <button
                       key={m.id}
                       onClick={() => settings.setModel(m.id)}

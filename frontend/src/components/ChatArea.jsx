@@ -301,9 +301,12 @@ export default function ChatArea({
     >
       <div className="max-w-3xl mx-auto w-full relative">
 
-        {/* Settings panel (anchored above input) */}
-        <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} settings={settings} />
-
+        <SettingsPanel
+  open={settingsOpen}
+  onClose={() => setSettingsOpen(false)}
+  settings={settings}
+  availableModels={settings.availableModels}
+/>
         {/* Image preview */}
         <AnimatePresence>
           {image && (

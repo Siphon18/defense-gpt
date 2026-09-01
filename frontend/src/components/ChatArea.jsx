@@ -4,7 +4,7 @@ import { Send, Square, ArrowDown, Sparkles, Mic, Paperclip, X, Image as ImageIco
 import { motion, AnimatePresence } from 'framer-motion'
 import MessageBubble from './MessageBubble'
 import SettingsPanel from './SettingsPanel'
-import { askStream } from '@/lib/api'
+import { askStream, fetchModels } from '@/lib/api'
 
 export default function ChatArea({
   messages, setMessages, settings, isLoading, setIsLoading,

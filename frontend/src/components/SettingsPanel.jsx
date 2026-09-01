@@ -71,7 +71,7 @@ export default function SettingsPanel({
                   Model
                 </label>
                 <div className="space-y-1">
-                  {availableModels.map((m) => (
+                  {settings.availableModels?.map((m) => (
                     <button
                       key={m.id}
                       onClick={() => settings.setModel(m.id)}

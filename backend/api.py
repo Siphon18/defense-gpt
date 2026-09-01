@@ -547,6 +547,7 @@ async def ask_stream(request: QueryRequest):
     context_mode=request.context_mode or "hybrid",
     chat_history=request.chat_history,
 )
+        )
 
     context = ""
     chunks = []

@@ -1,0 +1,38 @@
+# ─── Python ───
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# ─── Environment (NEVER commit secrets) ───
+.env
+.env.local
+.env.production
+.env.*.local
+frontend/.env.local
+frontend/.env.production
+frontend/.env.*.local
+
+# ─── Large PDF Files (Vector database stored in MongoDB Atlas) ───
+pdfs/
+chroma_db/
+
+# ─── Node / Next.js ───
+node_modules/
+frontend/node_modules/
+frontend/.next/
+
+# ─── Logs & temp ───
+*.log
+ingestion_log.json
+ingest_output.log
+backend_err.log
+backend_out.log
+
+# ─── OS files ───
+.DS_Store
+Thumbs.db

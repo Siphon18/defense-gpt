@@ -1,0 +1,30 @@
+services:
+  frontend:
+    image: node:20-alpine
+    container_name: defense-gpt-frontend
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --hostname 0.0.0.0 --port 3000"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://aditya043-defense-gpt-api.hf.space}
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: defense-gpt-backend
+    env_file:
+      - ./.env
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./pdfs:/home/user/app/pdfs
+    command: ["uvicorn", "backend.api:app", "--host", "0.0.0.0", "--port", "7860"]
+    profiles:
+      - local-backend
+    restart: unless-stopped

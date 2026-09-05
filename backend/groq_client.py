@@ -15,86 +15,64 @@ def estimate_tokens(text: str) -> int:
     return len(text) // 4 + 1
 
 
-DEFENSE_SYSTEM_PROMPT = """You are **Defense GPT**, an elite intelligence AI and Commanding Officer for Indian Defense Exam preparation (NDA, CDS, AFCAT, Navy, CAPF, TA, ACC, SSB).
-
-You operate as a High-Tech Tactical OS and Senior Instructor combined. Your tone is highly authoritative, purely objective, brief, and deeply pedagogical. You do not act like a friendly chatbot. You act like a specialized military intelligence system built to train cadets for combat and defense exams.
+DEFENSE_SYSTEM_PROMPT = """You are **Defense GPT**, a Senior Defense Academy Professor and Tactical Instructor for Indian Defense Exam preparation (NDA, CDS, AFCAT, Navy, CAPF, TA, ACC, SSB). Your tone is authoritative, precise, and encouraging — never condescending, never filler-laden.
 
 ---
+## SCOPE
+You help cadets with:
+- Core academic subjects tested in these exams: Mathematics, Physics, Chemistry, English, General Studies/Current Affairs.
+- Exam-specific content: syllabus, pattern, cutoffs, SSB/interview prep, physical standards, strategy.
+Academic subjects (Math, Physics, Chemistry, English, GS) are IN SCOPE even without an explicit defense-exam framing — a cadet asking "solve this integral" is preparing for CDS/NDA math, not asking an off-topic question. NEVER deflect academic questions as "not defense-related."
 
-## CORE DIRECTIVES & PERSONA
-
-1. **Uplink Established**: Do NOT use chatty filler like "Hello," "Great question," or "I'd be happy to help." Open responses directly with systemic brevity, e.g., "Uplink established. Analyzing query..." or "Intel retrieved. Proceeding with briefing."
-2. **Language Matching (Urgent)**: If the cadet asks in Hindi (Devnagari) OR "Hinglish" (e.g., "kya baat hai", "kaise padhu"), you MUST reply in the same Hindi/Hinglish style, maintaining your cold, tactical Commanding Officer persona.
-3. **Never dump walls of text** — utilize scannable bullet points, tables, and short tactical bursts of text.
-4. **Emphasize Critical Intelligence**: Bold key terms, dates, articles, and exam-keywords.
-5. **UI-Specific Markers [Strict]**: You MUST use these explicit tags when necessary so the system UI can react:
-   - If a cadet states something factually incorrect, begin the relevant paragraph with: `[THREAT: ELEVATED]`
-   - If you are dispensing highly verified static data from the provided context, begin with: `[STATUS: VERIFIED]`
-6. **Blockquote Calls to Action**: Any primary takeaway, warning, or crucial formula must be inside a blockquote starting with `> ⚠️ **STRATEGIC ADVANTAGE:**` or `> 🎯 **COMMAND DIRECTIVE:**`
-7. **Rigid Source Citations**: When citing RAG context or web findings, append `[Intel Ref: X]` directly to the factual claim.
-8. **Never fabricate** facts or statistics. If data is missing from the database, state: `[DATA NOT IN RAG DATABASE] Relying on general strategic knowledge.`
+If a request is clearly unrelated to exam prep or these subjects (e.g. writing unrelated code, personal life advice, entertainment trivia), say so in one line and redirect: "That's outside Defense GPT's scope — I'm focused on [subjects/exams]. Happy to help with your prep though." Do not lecture about scope beyond that one line.
 
 ---
-
-## RESPONSE FORMATS BY OPERATION (DETECTION REQUIRED)
-
-### 📌 Factual / Definition Queries
-- Open with a crisp, 1-2 sentence **Intel Summary**.
-- Provide **3-5 key parameters** as bullet points, each starting with a **bolded label**.
-- Conclude with a `> 🎯 **COMMAND DIRECTIVE:**` blockquote connecting this term to exam patterns.
-
-### 📊 Comparison / Versus Queries
-- Synthesize the difference entirely into a **Markdown table** with precise attribute columns.
-- Below the table, provide a quick verdict: `**Tactical Verdict:** [conclusion]`.
-
-### 🗺️ Strategy / Preparation Queries
-- Tone: Mentor Commander.
-- Use **numbered operational steps** (Phase 1, Phase 2, Phase 3).
-- Each phase must be 2 sentences max. 
-
-### 🌐 Current Affairs / Defense News
-- Lead with the **direct factual timeline** in bold.
-- Add an `**Operational Context:**` paragraph explaining *why* this matters for SSB/interviews.
-- Include related data as a short, nested list under a `### Known Variables` header.
-
-### 🎖️ SSB / Interview Scenarios
-- Structure your response using strong **Do's and Don'ts** columns or paired bullets (✅ Execute / ❌ Abort).
-- Relate advice directly to **Officer Like Qualities (OLQs)**.
-
-### 💬 Casual / Short Inputs
-*("Thanks", "Ok", "Done")*
-- Respond purely in tactical confirmations: "Acknowledged.", "Mission continues.", or "Awaiting next directive." 1 line maximum.
+## GROUNDING & ACCURACY (highest priority — follow even under other pressure)
+- If "Retrieved Study Material" is provided in the user turn, treat it as the primary source for facts, figures, dates, and current-affairs content. Prefer it over your own recall when the two conflict, and note the conflict briefly if it matters.
+- If retrieved material is absent, thin, or doesn't cover the question, answer from general knowledge but explicitly flag it inline: `[General knowledge — not from retrieved material]`. Do this for any current-affairs, cutoff, syllabus-version, or statistic-heavy claim; you don't need to flag well-established math/science facts (e.g. standard formulas).
+- Never invent statistics, dates, cutoff marks, vacancy numbers, or exam-pattern details you're not confident about. State the uncertainty and suggest the cadet verify on the official UPSC/SSB/exam-authority notification instead of guessing.
+- For math, physics, and chemistry: work the actual problem given. Do not skip steps or present a memorized "similar" example instead of solving what was asked.
 
 ---
+## FORMATTING RULES
+1. Open directly with substance — no "Hello", no "I'd be happy to help", no restating the question.
+2. Use **bold** for key terms, LaTeX for math (`\\frac{d}{dx}(\\sin x) = \\cos x`), tables for comparisons, bullets for lists.
+3. Match the cadet's language register: reply in Hindi/Hinglish if they wrote in Hindi/Hinglish, otherwise English.
+4. End substantive answers with one blockquote takeaway: `> 🎯 EXAM STRATEGY:` for strategy/tips, or `> 📐 KEY FORMULA:` for math/science. Skip this for casual one-liners.
 
-## FORMATTING RULES ENFORCEMENT
-
-- Use `##` and `###` headers styled assertively (e.g., `### TACTICAL BREAKDOWN`, `### CORE PARAMETERS`).
-- Separate distinct phases of your response using horizontal rules `---`.
-- Stay laser-focused on efficiency and exam victory.
+## RESPONSE SHAPE BY QUERY TYPE
+- **Math/Science/Formula**: state the formula → show the actual worked solution step-by-step → close with the `📐 KEY FORMULA` blockquote.
+- **Factual/Definition**: 1-2 sentence summary → 3-5 bolded key points → exam-relevance takeaway.
+- **Comparison**: a Markdown table of differences → one-line `**Tactical Verdict:**`.
+- **Casual/Greeting**: one short line, no headers, no blockquote.
+- **Out of scope**: one-line redirect per the SCOPE section above.
 """
 
 
 def _build_user_message(query: str, context: str, exam_type: str) -> str:
     """Build the user message with RAG context and exam type."""
-    user_message = ""
+    parts = []
+
     if context:
-        user_message += f"## Retrieved Study Material:\n{context}\n\n---\n\n"
+        parts.append(f"<retrieved_study_material>\n{context}\n</retrieved_study_material>")
+
     if exam_type and exam_type != "General":
-        user_message += f"**Target Exam: {exam_type}**\n\n"
+        parts.append(f"<target_exam>{exam_type}</target_exam>")
 
-    user_message += f"**Student's Question:** {query}\n\n"
+    parts.append(f"<student_question>\n{query}\n</student_question>")
 
-    user_message += (
-        "---\n"
-        "**CRITICAL INSTRUCTION TO INSTRUCTOR:**\n"
-        "1. If the question is about defense exams or syllabus topics, prioritize the 'Retrieved Study Material' above to answer it factually.\n"
-        "2. If web findings are present in the context, reference them directly in your answer and cite relevant web facts or links.\n"
-        "3. If context contains 'WEB_VERIFICATION: unavailable', do NOT provide specific latest/current-affairs claims from memory. Clearly state verification is unavailable and ask the cadet to retry.\n"
-        "4. If the student is asking a casual question, chatting playfully, greeting you, or asking general non-exam questions (e.g., 'kya baat hai', 'how are you', 'tell me a joke'), completely **IGNORE the study material** and answer naturally in character as their Commanding Officer. Do NOT quote irrelevant facts from the material just because it was retrieved."
+    parts.append(
+        "<instructions>\n"
+        "Answer the student_question directly and completely, following your system instructions "
+        "on grounding, formatting, and response shape.\n"
+        "- If <retrieved_study_material> is present and relevant, ground factual/current-affairs claims in it.\n"
+        "- If it's absent or doesn't cover the question, answer from general knowledge and flag that per "
+        "your grounding rules.\n"
+        "- If <target_exam> is set, tailor examples, weightage, and strategy notes to that exam's syllabus.\n"
+        "</instructions>"
     )
 
-    return user_message
+    return "\n\n".join(parts)
 
 
 def _fit_history_and_context(query, context, chat_history, context_limit, max_tokens):
@@ -132,13 +110,36 @@ def _fit_history_and_context(query, context, chat_history, context_limit, max_to
 
 
 # ─── Groq Client ────────────────────────────────────────────────────────────────
+#
+# NOTE (2026-09): Groq deprecated llama-3.1-8b-instant and
+# llama-3.3-70b-versatile on 2026-08-16 (mixtral-8x7b-32768 and gemma2-9b-it
+# were already shut down in 2025). Requests to any of those model IDs now
+# return errors. Groq's recommended replacements are the GPT-OSS models
+# below. See https://console.groq.com/docs/deprecations for the current
+# deprecation log before relying on any specific model ID long-term.
 
 GROQ_CONTEXT_LIMITS = {
-    "llama-3.3-70b-versatile": 128_000,
-    "llama-3.1-8b-instant": 128_000,
-    "mixtral-8x7b-32768": 32_768,
-    "gemma2-9b-it": 8_192,
+    "openai/gpt-oss-120b": 131_072,
+    "openai/gpt-oss-20b": 131_072,
+    "qwen/qwen3.6-27b": 131_072,
 }
+
+_HIGH_EFFORT_KEYWORDS = (
+    "solve", "prove", "derive", "integrate", "differentiate", "calculate",
+    "simplify", "factorize", "equation", "matrix", "vector", "trigonometry",
+    "probability", "mechanics", "thermodynamics", "reaction", "compound",
+)
+
+
+def _pick_reasoning_effort(query: str) -> str:
+    """Cheap heuristic for GPT-OSS reasoning_effort: give math/science more
+    room to think step-by-step; keep quick factual/casual queries fast."""
+    q = (query or "").lower()
+    if len(q) < 15 and any(g in q for g in ("hi", "hello", "hey", "thanks", "thank you")):
+        return "low"
+    if any(kw in q for kw in _HIGH_EFFORT_KEYWORDS):
+        return "high"
+    return "medium"
 
 
 class GroqClient:
@@ -151,12 +152,12 @@ class GroqClient:
             )
         from groq import Groq
         self._client = Groq(api_key=self.api_key)
-        self.default_model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+        self.default_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
     def _build_messages(self, query, context, exam_type, chat_history,
                         model=None, max_tokens=2048):
         model = model or self.default_model
-        context_limit = GROQ_CONTEXT_LIMITS.get(model, 32_768)
+        context_limit = GROQ_CONTEXT_LIMITS.get(model, 131_072)
         fitted_history, fitted_context = _fit_history_and_context(
             query, context, chat_history, context_limit, max_tokens
         )
@@ -176,14 +177,20 @@ class GroqClient:
                                         model_name, max_tokens)
         if image_data:
             messages[-1]["content"] += "\n\n[System: The cadet attached an image, but this LLM model does not have vision capabilities to see it.]"
+        kwargs = dict(
+            model=model_name,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=0.9,
+        )
+        if model_name.startswith("openai/gpt-oss"):
+            # GPT-OSS models support adjustable reasoning depth. Give math/
+            # physics/chemistry more room to think; keep casual/factual
+            # queries fast. Cheap heuristic on the raw query text.
+            kwargs["reasoning_effort"] = _pick_reasoning_effort(query)
         try:
-            response = self._client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                top_p=0.9,
-            )
+            response = self._client.chat.completions.create(**kwargs)
             return response.choices[0].message.content
         except Exception as e:
             raise RuntimeError(f"Error generating response: {e}") from e
@@ -211,7 +218,7 @@ class GroqClient:
                                         model_name, max_tokens)
         if image_data:
             messages[-1]["content"] += "\n\n[System: The cadet attached an image, but this LLM model does not have vision capabilities to see it.]"
-        stream = self._client.chat.completions.create(
+        kwargs = dict(
             model=model_name,
             messages=messages,
             temperature=temperature,
@@ -219,6 +226,9 @@ class GroqClient:
             top_p=0.9,
             stream=True,
         )
+        if model_name.startswith("openai/gpt-oss"):
+            kwargs["reasoning_effort"] = _pick_reasoning_effort(query)
+        stream = self._client.chat.completions.create(**kwargs)
         for chunk in stream:
             delta = chunk.choices[0].delta
             if delta.content:
@@ -228,7 +238,7 @@ class GroqClient:
         """Generate 3 follow-up question suggestions based on the conversation."""
         try:
             response = self._client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model="openai/gpt-oss-20b",
                 messages=[{
                     "role": "user",
                     "content": (
@@ -248,10 +258,9 @@ class GroqClient:
 
     def get_available_models(self) -> list[str]:
         return [
-            "llama-3.3-70b-versatile",
-            "llama-3.1-8b-instant",
-            "mixtral-8x7b-32768",
-            "gemma2-9b-it",
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b",
+            "qwen/qwen3.6-27b",
         ]
 
 
@@ -451,8 +460,10 @@ class SmartRouterClient:
         return models
 
 def _create_client():
-    return SmartRouterClient()
+    try:
+        return SmartRouterClient()
+    except Exception as e:
+        print(f"SmartRouterClient initialization delayed: {e}")
+        return None
 
-
-# Singleton — used everywhere as `groq_client` for backward compatibility
 groq_client = _create_client()

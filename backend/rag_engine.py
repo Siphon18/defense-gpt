@@ -51,7 +51,8 @@ class RAGEngine:
     @property
     def collection(self):
         if self._collection is None:
-            self._client = MongoClient(MONGODB_URI)
+            timeout_ms = 4000 if MONGODB_URI else 1500
+            self._client = MongoClient(MONGODB_URI or "mongodb://localhost:27017", serverSelectionTimeoutMS=timeout_ms)
             self._db = self._client[DB_NAME]
             self._collection = self._db[COLLECTION_NAME]
         return self._collection

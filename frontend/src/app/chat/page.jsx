@@ -2,12 +2,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { Menu, Plus, Check } from 'lucide-react'
 import Sidebar from '@/components/Sidebar'
 import ChatArea from '@/components/ChatArea'
 import WelcomeScreen from '@/components/WelcomeScreen'
 import { getChats, saveChat, deleteChat as removeChat, createNewChat } from '@/lib/chatStore'
-import { fetchStats, fetchModels } from '@/lib/api'
+import { fetchStats } from '@/lib/api'
 
 export default function ChatPage() {
   const { data: session, status } = useSession()
@@ -18,29 +18,11 @@ export default function ChatPage() {
   const activeChatIdRef = useRef(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [examType, setExamType] = useState('General')
-  const [model, setModel] = useState(null)
-  const [availableModels, setAvailableModels] = useState([])
-  const [temperature, setTemperature] = useState(0.3)
-  const [topK, setTopK] = useState(5)
   const [isLoading, setIsLoading] = useState(false)
   const [stats, setStats] = useState({ total_chunks: 0, total_pdfs: 0, pdf_names: [] })
-  const [useLiveWebSearch, setUseLiveWebSearch] = useState(true)
-  const [contextMode, setContextMode] = useState('hybrid')
   const [saveStatus, setSaveStatus] = useState('idle')
   const saveStatusTimerRef = useRef(null)
-  const [showTour, setShowTour] = useState(false)
-  const [tourStep, setTourStep] = useState(0)
 
-  const tourSteps = [
-    { title: 'Pick your exam', body: 'Use the sidebar exam chips to focus coaching for NDA, CDS, AFCAT, and more.' },
-    { title: 'Toggle web search', body: 'The settings gear in the input bar lets you switch between PDF, web, or hybrid context.' },
-    { title: 'Run practice quizzes', body: 'Open Practice Quiz from the sidebar to generate MCQ sets and track weak areas.' },
-  ]
-
-  useEffect(() => {
-    const done = localStorage.getItem('defense-gpt-tour-v1')
-    if (!done) setShowTour(true)
-  }, [])
   useEffect(() => () => { if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current) }, [])
 
   const markSaveStatus = useCallback((v) => {
@@ -51,22 +33,26 @@ export default function ChatPage() {
 
   const persistChat = useCallback(async (chatData) => {
     markSaveStatus('saving')
-    try { const saved = await saveChat(chatData); markSaveStatus('saved'); return saved }
-    catch { markSaveStatus('error'); return null }
+    try {
+      const saved = await saveChat(chatData)
+      markSaveStatus('saved')
+      return saved
+    } catch {
+      markSaveStatus('error')
+      return null
+    }
   }, [markSaveStatus])
 
-  useEffect(() => { getChats().then(setChats) }, [])
   useEffect(() => {
-  fetchStats().then(setStats).catch(() => {})
-
-  fetchModels()
-    .then(data => {
-      const models = data.models || []
-      setAvailableModels(models)
-      setModel(data.default || models[0] || null)
+    getChats().then(loadedChats => {
+      setChats(loadedChats)
+      if (loadedChats?.length > 0 && !activeChatIdRef.current) {
+        setActiveChatId(loadedChats[0].id)
+        if (loadedChats[0].examType) setExamType(loadedChats[0].examType)
+      }
     })
-    .catch(() => {})
-}, [])
+    fetchStats().then(setStats).catch(() => {})
+  }, [])
 
   const activeChat = chats.find(c => c.id === activeChatId) || null
   const messages = activeChat?.messages || []
@@ -93,6 +79,19 @@ export default function ChatPage() {
     })
     if (chatToSave) persistChat(chatToSave)
   }, [persistChat])
+
+  const handleSetExamType = (newExam) => {
+    setExamType(newExam)
+    const currentId = activeChatIdRef.current
+    if (currentId) {
+      setChats(prev => {
+        const updatedChats = prev.map(c => c.id === currentId ? { ...c, examType: newExam, updatedAt: Date.now() } : c)
+        const chatToSave = updatedChats.find(c => c.id === currentId)
+        if (chatToSave) persistChat(chatToSave)
+        return updatedChats
+      })
+    }
+  }
 
   const handleNewChat = async () => {
     const chat = createNewChat(examType)
@@ -145,20 +144,8 @@ export default function ChatPage() {
   const showWelcome = messages.length === 0
 
   const settings = {
-  examType,
-  model,
-  setModel,
-  availableModels,
-  temperature,
-  setTemperature,
-  topK,
-  setTopK,
-  sourceFilter: null,
-  useLiveWebSearch,
-  setUseLiveWebSearch,
-  contextMode,
-  setContextMode,
-}
+    examType,
+  }
 
   if (status === 'loading') {
     return (
@@ -182,13 +169,66 @@ export default function ChatPage() {
         onNewChat={handleNewChat}
         onDeleteChat={handleDeleteChat}
         examType={examType}
-        setExamType={setExamType}
+        setExamType={handleSetExamType}
         session={session}
         onSignOut={() => signOut({ callbackUrl: '/' })}
         saveStatus={saveStatus}
+        showToggle={false}
       />
 
-      <main className="flex-1 flex flex-col min-w-0 min-h-0">
+      <main className="flex-1 flex flex-col min-w-0 min-h-0 bg-[#0c0d0f]">
+        {/* Sleek Top Chat Header */}
+        <header className="h-12 border-b border-white/[0.06] bg-[#0c0d0f]/80 backdrop-blur-md px-3 sm:px-5 flex items-center justify-between shrink-0 z-30">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Mobile Sidebar Hamburger Toggle */}
+            <button
+              onClick={() => setSidebarOpen(o => !o)}
+              className="lg:hidden p-1.5 rounded-lg text-[#6b7280] hover:text-white hover:bg-white/[0.05] transition-colors"
+              aria-label="Toggle navigation drawer"
+            >
+              <Menu size={18} />
+            </button>
+
+            {/* Active Exam Pill */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#22c55e]/10 border border-[#22c55e]/20 text-[#22c55e] text-xs font-semibold shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-pulse" />
+              <span>{examType} Focus</span>
+            </div>
+
+            {/* Truncated Active Chat Title on larger screens */}
+            {!showWelcome && activeChat?.title && (
+              <span className="hidden xl:inline text-xs text-[#4b5563] truncate max-w-[200px] border-l border-white/[0.06] pl-2.5">
+                {activeChat.title}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Save Status Indicator */}
+            {saveStatus === 'saving' && (
+              <span className="text-[11px] font-geist-mono text-[#6b7280] flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/[0.02]">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                <span className="hidden sm:inline">Saving</span>
+              </span>
+            )}
+            {saveStatus === 'saved' && (
+              <span className="text-[11px] font-geist-mono text-[#22c55e] flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#22c55e]/5">
+                <Check size={11} />
+                <span className="hidden sm:inline">Saved</span>
+              </span>
+            )}
+
+            {/* Quick New Chat Button */}
+            <button
+              onClick={handleNewChat}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-[#9ca3af] hover:text-white border border-white/[0.06] transition-all"
+            >
+              <Plus size={13} />
+              <span className="hidden sm:inline">New Chat</span>
+            </button>
+          </div>
+        </header>
+
         {showWelcome && <WelcomeScreen stats={stats} onQuickPrompt={handleQuickPrompt} />}
         <ChatArea
           messages={messages}
@@ -200,69 +240,6 @@ export default function ChatPage() {
           onFirstMessage={handleFirstMessage}
         />
       </main>
-
-      {/* Onboarding tour */}
-      <AnimatePresence>
-        {showTour && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm flex items-center justify-center px-4"
-          >
-            <motion.div
-              initial={{ scale: 0.94, y: 12 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.94, y: 12 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-              className="bg-[#141518] border border-white/[0.09] rounded-2xl max-w-sm w-full p-6"
-              style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}
-            >
-              <div className="flex items-center gap-2 mb-4">
-                {tourSteps.map((_, i) => (
-                  <div
-                    key={i}
-                    className={`h-0.5 flex-1 rounded-full transition-colors duration-300 ${i <= tourStep ? 'bg-[#22c55e]' : 'bg-white/[0.07]'}`}
-                  />
-                ))}
-              </div>
-              <p className="text-[11px] font-geist-mono text-[#4b5563] uppercase tracking-widest mb-1">
-                {tourStep + 1} of {tourSteps.length}
-              </p>
-              <h2 className="text-lg font-semibold text-white mb-2">{tourSteps[tourStep].title}</h2>
-              <p className="text-sm text-[#6b7280] leading-relaxed mb-6">{tourSteps[tourStep].body}</p>
-
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={() => { localStorage.setItem('defense-gpt-tour-v1', 'done'); setShowTour(false) }}
-                  className="text-xs text-[#4b5563] hover:text-[#6b7280] transition-colors"
-                >
-                  Skip
-                </button>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setTourStep(s => Math.max(0, s - 1))}
-                    disabled={tourStep === 0}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-[#1c1e22] border border-white/[0.07] text-[#6b7280] disabled:opacity-40 hover:text-white transition-colors"
-                  >
-                    Back
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (tourStep < tourSteps.length - 1) { setTourStep(s => s + 1); return }
-                      localStorage.setItem('defense-gpt-tour-v1', 'done')
-                      setShowTour(false)
-                    }}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-[#22c55e] text-[#0c0d0f] font-semibold hover:bg-[#16a34a] transition-colors"
-                  >
-                    {tourStep < tourSteps.length - 1 ? 'Next' : 'Done'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   )
 }

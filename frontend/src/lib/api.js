@@ -24,15 +24,24 @@ export async function deletePdf(filename) {
   return res.json()
 }
 
-export async function askQuestion(question, examType, model, temperature, topK, sourceFilter, useLiveWebSearch = true, contextMode = 'hybrid') {
+export async function askQuestion(
+  question,
+  examType = 'General',
+  model = 'auto',
+  temperature = null,
+  topK = 5,
+  sourceFilter = null,
+  useLiveWebSearch = true,
+  contextMode = 'hybrid'
+) {
   const res = await fetch(`${API_BASE}/ask`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       query: question,
       exam_type: examType,
-      model,
-      temperature,
+      model: model || 'auto',
+      temperature: temperature ?? null,
       top_k: topK,
       source_filter: sourceFilter,
       use_live_web_search: useLiveWebSearch,
@@ -47,19 +56,31 @@ export async function askQuestion(question, examType, model, temperature, topK, 
  * Stream a response from the backend using SSE.
  * Returns an AbortController so the caller can cancel mid-stream.
  */
-export function askStream(question, examType, model, temperature, topK, sourceFilter, useLiveWebSearch, contextMode, chatHistory, imageData, { onToken, onAgentStep, onSources, onSuggestions, onDone, onError }) {
+export function askStream(
+  question,
+  examType = 'General',
+  model = 'auto',
+  temperature = null,
+  topK = 5,
+  sourceFilter = null,
+  useLiveWebSearch = true,
+  contextMode = 'auto',
+  chatHistory = null,
+  imageData = null,
+  { onToken, onAgentStep, onSources, onSuggestions, onDone, onError }
+) {
   const controller = new AbortController()
 
   ; (async () => {
     const requestBody = JSON.stringify({
       query: question,
       exam_type: examType,
-      model,
-      temperature,
+      model: model || 'auto',
+      temperature: temperature ?? null,
       top_k: topK,
       source_filter: sourceFilter,
       use_live_web_search: useLiveWebSearch,
-      context_mode: contextMode || 'hybrid',
+      context_mode: contextMode || 'auto',
       chat_history: chatHistory,
       image_data: imageData,
     })
@@ -93,7 +114,10 @@ export function askStream(question, examType, model, temperature, topK, sourceFi
             if (data.type === 'agent_step' && data.step) onAgentStep?.(data.step)
             if (data.type === 'sources' && data.sources) onSources?.(data.sources)
             if (data.type === 'suggestions' && data.suggestions) onSuggestions?.(data.suggestions)
-            if (data.type === 'error') onError?.(data.content || 'Unknown error')
+            if (data.type === 'error') {
+              onError?.(data.content || 'Unknown error')
+              return
+            }
             if (data.type === 'done') {
               onDone?.()
               return

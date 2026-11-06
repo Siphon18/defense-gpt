@@ -5,9 +5,11 @@ Set LLM_PROVIDER=groq or LLM_PROVIDER=gemini in your .env file.
 """
 
 import os
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 def estimate_tokens(text: str) -> int:
@@ -122,24 +124,87 @@ GROQ_CONTEXT_LIMITS = {
     "openai/gpt-oss-120b": 131_072,
     "openai/gpt-oss-20b": 131_072,
     "qwen/qwen3.6-27b": 131_072,
+    "meta-llama/llama-4-scout-17b-16e-instruct": 131_072,
+    "qwen/qwen3.8-27b": 131_072,
 }
 
-_HIGH_EFFORT_KEYWORDS = (
-    "solve", "prove", "derive", "integrate", "differentiate", "calculate",
-    "simplify", "factorize", "equation", "matrix", "vector", "trigonometry",
-    "probability", "mechanics", "thermodynamics", "reaction", "compound",
+DEFAULT_GROQ_VISION_MODEL = os.getenv("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+FALLBACK_GROQ_VISION_MODEL = "qwen/qwen3.8-27b"
+
+_COMPLEX_MATH_SCIENCE_KEYWORDS = (
+    "solve", "prove", "derive", "integrate", "integration", "derivative",
+    "differentiate", "calculate", "simplify", "factorize", "equation",
+    "matrix", "vector", "trigonometry", "probability", "mechanics",
+    "thermodynamics", "reaction", "compound", "stoichiometry", "kinematics",
+    "gravitation", "optics", "quantum", "differential equation", "limits",
+    "continuity", "binomial", "logarithm", "complex number", "quadratic",
+    "numerical", "calculate the value", "find the value", "evaluate",
+)
+
+_DEEP_ANALYSIS_KEYWORDS = (
+    "strategy", "study plan", "3-month", "6-month", "ssb", "interview",
+    "psychology", "tat", "wat", "srt", "gpe", "group planning", "lecturette",
+    "comparison", "compare and contrast", "differences between", "detailed analysis",
+    "geopolitics", "foreign policy", "defense procurement", "doctrine", "tactics",
+    "indepth", "in-depth", "comprehensive guide", "essay", "briefing",
 )
 
 
 def _pick_reasoning_effort(query: str) -> str:
     """Cheap heuristic for GPT-OSS reasoning_effort: give math/science more
     room to think step-by-step; keep quick factual/casual queries fast."""
-    q = (query or "").lower()
-    if len(q) < 15 and any(g in q for g in ("hi", "hello", "hey", "thanks", "thank you")):
+    q = (query or "").lower().strip()
+    q_words = set(q.split())
+    if len(q) < 20 and (bool(q_words & {"hi", "hello", "hey", "thanks", "ok", "okay"}) or q in ("thank you",)):
         return "low"
-    if any(kw in q for kw in _HIGH_EFFORT_KEYWORDS):
+    if any(kw in q for kw in _COMPLEX_MATH_SCIENCE_KEYWORDS):
         return "high"
     return "medium"
+
+
+def auto_route_groq_model(query: str, context: str = "", exam_type: str = "", has_image: bool = False) -> tuple[str, float]:
+    """
+    Intelligently auto-route to the best model on the same Groq API key and choose
+    optimal temperature:
+    - meta-llama/llama-4-scout-17b-16e-instruct: Images/multimodal attachments.
+    - openai/gpt-oss-120b: Deep math, physics numericals, SSB psychology, complex strategy,
+      or heavy context synthesis (> 5,000 chars).
+    - openai/gpt-oss-20b: Fast, highly responsive for quick factual queries, syllabus lookups,
+      definitions, cutoffs, greetings, and everyday Q&A.
+
+    Returns (model_id, temperature).
+    """
+    if has_image:
+        logger.info(f"Auto-routed to {DEFAULT_GROQ_VISION_MODEL} (image attachment detected)")
+        return DEFAULT_GROQ_VISION_MODEL, 0.2
+
+    q = (query or "").lower().strip()
+
+    # Very short casual greetings or acknowledgments -> fast 20b
+    q_words = set(q.split())
+    if len(q) < 25 and (
+        bool(q_words & {"hi", "hello", "hey", "thanks", "thank", "ok", "okay", "bye"})
+        or q in ("thank you", "good morning", "good evening", "good afternoon", "thank you so much")
+    ):
+        return "openai/gpt-oss-20b", 0.3
+
+    # Complex math / physics / chemistry -> 120b with low temperature for calculation precision
+    if any(kw in q for kw in _COMPLEX_MATH_SCIENCE_KEYWORDS):
+        logger.info(f"Auto-routed to openai/gpt-oss-120b (complex math/science query)")
+        return "openai/gpt-oss-120b", 0.15
+
+    # Deep tactical, SSB, long-term preparation plans, or comparative analysis -> 120b
+    if any(kw in q for kw in _DEEP_ANALYSIS_KEYWORDS):
+        logger.info(f"Auto-routed to openai/gpt-oss-120b (deep analysis/tactical)")
+        return "openai/gpt-oss-120b", 0.35
+
+    # Heavy context synthesis (> 5,000 characters of study material & web data) -> 120b
+    if len(context or "") > 5000:
+        logger.info(f"Auto-routed to openai/gpt-oss-120b (heavy context: {len(context)} chars)")
+        return "openai/gpt-oss-120b", 0.25
+
+    # Default -> fast, responsive 20b model for snappy cadet experience
+    return "openai/gpt-oss-20b", 0.3
 
 
 class GroqClient:
@@ -154,8 +219,25 @@ class GroqClient:
         self._client = Groq(api_key=self.api_key)
         self.default_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
+    def resolve_model_and_temp(self, query: str, context: str = "", exam_type: str = "",
+                               model: str = None, temperature: float = None, has_image: bool = False) -> tuple[str, float]:
+        """Resolves model and temperature, using auto-routing if unspecified or 'auto'."""
+        if has_image and (not model or model == "auto" or "gemini" in model):
+            final_model = DEFAULT_GROQ_VISION_MODEL
+            final_temp = 0.2 if temperature is None else temperature
+            return final_model, final_temp
+
+        if not model or model == "auto":
+            routed_model, auto_temp = auto_route_groq_model(query, context, exam_type, has_image=has_image)
+            final_model = routed_model
+            final_temp = auto_temp if temperature is None else temperature
+        else:
+            final_model = model
+            final_temp = 0.3 if temperature is None else temperature
+        return final_model, final_temp
+
     def _build_messages(self, query, context, exam_type, chat_history,
-                        model=None, max_tokens=2048):
+                        model=None, max_tokens=2048, image_data=None):
         model = model or self.default_model
         context_limit = GROQ_CONTEXT_LIMITS.get(model, 131_072)
         fitted_history, fitted_context = _fit_history_and_context(
@@ -166,33 +248,64 @@ class GroqClient:
         messages = [{"role": "system", "content": DEFENSE_SYSTEM_PROMPT}]
         for msg in fitted_history:
             messages.append({"role": msg["role"], "content": msg["content"]})
-        messages.append({"role": "user", "content": user_message})
+
+        if image_data:
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": user_message},
+                    {"type": "image_url", "image_url": {"url": image_data}}
+                ]
+            })
+        else:
+            messages.append({"role": "user", "content": user_message})
+
         return messages
 
     def generate_response(self, query, context="", exam_type="General",
-                          chat_history=None, model=None, temperature=0.3,
+                          chat_history=None, model=None, temperature=None,
                           max_tokens=2048, image_data=None) -> str:
-        model_name = model or self.default_model
-        messages = self._build_messages(query, context, exam_type, chat_history,
-                                        model_name, max_tokens)
-        if image_data:
-            messages[-1]["content"] += "\n\n[System: The cadet attached an image, but this LLM model does not have vision capabilities to see it.]"
+        has_image = bool(image_data)
+        model_name, temp = self.resolve_model_and_temp(
+            query, context, exam_type, model, temperature, has_image=has_image
+        )
+        messages = self._build_messages(
+            query, context, exam_type, chat_history,
+            model_name, max_tokens, image_data=image_data
+        )
         kwargs = dict(
             model=model_name,
             messages=messages,
-            temperature=temperature,
+            temperature=temp,
             max_tokens=max_tokens,
             top_p=0.9,
         )
         if model_name.startswith("openai/gpt-oss"):
-            # GPT-OSS models support adjustable reasoning depth. Give math/
-            # physics/chemistry more room to think; keep casual/factual
-            # queries fast. Cheap heuristic on the raw query text.
             kwargs["reasoning_effort"] = _pick_reasoning_effort(query)
         try:
             response = self._client.chat.completions.create(**kwargs)
             return response.choices[0].message.content
         except Exception as e:
+            # Resilient auto-fallback if primary vision model fails
+            if has_image and model_name == DEFAULT_GROQ_VISION_MODEL:
+                logger.warning(f"Groq primary vision model {model_name} failed ({e}), falling back to {FALLBACK_GROQ_VISION_MODEL}...")
+                kwargs["model"] = FALLBACK_GROQ_VISION_MODEL
+                try:
+                    response = self._client.chat.completions.create(**kwargs)
+                    return response.choices[0].message.content
+                except Exception as fallback_err:
+                    raise RuntimeError(f"Error generating vision response: {fallback_err}") from fallback_err
+            # Resilient auto-fallback to sibling model of same API key if 120b has capacity/rate issues
+            if model_name == "openai/gpt-oss-120b":
+                logger.warning(f"120B model failed ({e}), falling back to 20B on same API key...")
+                kwargs["model"] = "openai/gpt-oss-20b"
+                if "openai/gpt-oss" in kwargs["model"]:
+                    kwargs["reasoning_effort"] = _pick_reasoning_effort(query)
+                try:
+                    response = self._client.chat.completions.create(**kwargs)
+                    return response.choices[0].message.content
+                except Exception as fallback_err:
+                    raise RuntimeError(f"Error generating response: {fallback_err}") from fallback_err
             raise RuntimeError(f"Error generating response: {e}") from e
 
     def generate_json(self, system_prompt: str, model=None, temperature=0.7, max_tokens=2048) -> str:
@@ -211,24 +324,45 @@ class GroqClient:
             raise Exception(f"Failed to generate JSON: {e}")
 
     def stream_response(self, query, context="", exam_type="General",
-                        chat_history=None, model=None, temperature=0.3,
+                        chat_history=None, model=None, temperature=None,
                         max_tokens=2048, image_data=None):
-        model_name = model or self.default_model
-        messages = self._build_messages(query, context, exam_type, chat_history,
-                                        model_name, max_tokens)
-        if image_data:
-            messages[-1]["content"] += "\n\n[System: The cadet attached an image, but this LLM model does not have vision capabilities to see it.]"
+        has_image = bool(image_data)
+        model_name, temp = self.resolve_model_and_temp(
+            query, context, exam_type, model, temperature, has_image=has_image
+        )
+        messages = self._build_messages(
+            query, context, exam_type, chat_history,
+            model_name, max_tokens, image_data=image_data
+        )
         kwargs = dict(
             model=model_name,
             messages=messages,
-            temperature=temperature,
+            temperature=temp,
             max_tokens=max_tokens,
             top_p=0.9,
             stream=True,
         )
         if model_name.startswith("openai/gpt-oss"):
             kwargs["reasoning_effort"] = _pick_reasoning_effort(query)
-        stream = self._client.chat.completions.create(**kwargs)
+
+        try:
+            stream = self._client.chat.completions.create(**kwargs)
+        except Exception as e:
+            # Resilient auto-fallback if primary vision model fails
+            if has_image and model_name == DEFAULT_GROQ_VISION_MODEL:
+                logger.warning(f"Groq primary vision stream {model_name} failed ({e}), falling back to {FALLBACK_GROQ_VISION_MODEL}...")
+                kwargs["model"] = FALLBACK_GROQ_VISION_MODEL
+                stream = self._client.chat.completions.create(**kwargs)
+            # Resilient auto-fallback to sibling model of same API key if 120b fails
+            elif model_name == "openai/gpt-oss-120b":
+                logger.warning(f"120B stream failed ({e}), falling back to 20B on same API key...")
+                kwargs["model"] = "openai/gpt-oss-20b"
+                if "openai/gpt-oss" in kwargs["model"]:
+                    kwargs["reasoning_effort"] = _pick_reasoning_effort(query)
+                stream = self._client.chat.completions.create(**kwargs)
+            else:
+                raise e
+
         for chunk in stream:
             delta = chunk.choices[0].delta
             if delta.content:
@@ -260,6 +394,8 @@ class GroqClient:
         return [
             "openai/gpt-oss-120b",
             "openai/gpt-oss-20b",
+            "meta-llama/llama-4-scout-17b-16e-instruct",
+            "qwen/qwen3.8-27b",
             "qwen/qwen3.6-27b",
         ]
 
@@ -416,15 +552,28 @@ class SmartRouterClient:
                           chat_history=None, model=None, temperature=0.3,
                           max_tokens=2048, image_data=None) -> str:
         if image_data:
-            if not self.gemini:
-                return "**Reconnaissance Failed:** Image prompts require Gemini, but GEMINI_API_KEY is not configured."
-            gemini_model = "gemini-2.0-flash" if not model or "gemini" not in model else model
+            # If user explicitly requested a gemini model and gemini client is available
+            if model and "gemini" in model and self.gemini:
+                try:
+                    return self.gemini.generate_response(query, context, exam_type, chat_history, model, temperature, max_tokens, image_data)
+                except Exception as e:
+                    logger.warning(f"Explicit Gemini vision failed ({e}), falling back to Groq native vision...")
+
+            # Primary: Groq Native Vision (meta-llama/llama-4-scout-17b-16e-instruct or qwen/qwen3.8-27b)
+            groq_model = None if not model or "gemini" in model else model
             try:
-                return self.gemini.generate_response(query, context, exam_type, chat_history, gemini_model, temperature, max_tokens, image_data)
+                return self.groq.generate_response(query, context, exam_type, chat_history, groq_model, temperature, max_tokens, image_data=image_data)
             except Exception as e:
-                return f"**Reconnaissance Failed:** The Intelligence Server (Gemini Vision) rejected the image attachment due to a quota limit or region restriction. Please verify your Google AI Studio billing/quota limits. Error: {str(e)}"
-        
-        # Route pure text queries to Groq to save Gemini quotas
+                # Secondary fallback: Gemini if configured
+                if self.gemini:
+                    try:
+                        logger.warning(f"Groq native vision failed ({e}), falling back to Gemini...")
+                        return self.gemini.generate_response(query, context, exam_type, chat_history, "gemini-2.0-flash", temperature, max_tokens, image_data)
+                    except Exception as gemini_err:
+                        raise RuntimeError(f"Vision analysis failed on both Groq and Gemini: {e}; {gemini_err}")
+                raise RuntimeError(f"Vision analysis failed: {e}")
+
+        # Route pure text queries to Groq
         groq_model = self.groq.default_model if not model or "gemini" in model else model
         return self.groq.generate_response(query, context, exam_type, chat_history, groq_model, temperature, max_tokens)
 
@@ -437,16 +586,31 @@ class SmartRouterClient:
                         chat_history=None, model=None, temperature=0.3,
                         max_tokens=2048, image_data=None):
         if image_data:
-            if not self.gemini:
-                yield "**Reconnaissance Failed:** Image prompts require Gemini, but GEMINI_API_KEY is not configured."
-                return
-            gemini_model = "gemini-2.0-flash" if not model or "gemini" not in model else model
+            # If user explicitly requested a gemini model and gemini client is available
+            if model and "gemini" in model and self.gemini:
+                try:
+                    yield from self.gemini.stream_response(query, context, exam_type, chat_history, model, temperature, max_tokens, image_data)
+                    return
+                except Exception as e:
+                    logger.warning(f"Explicit Gemini vision stream failed ({e}), falling back to Groq native vision...")
+
+            # Primary: Groq Native Vision
+            groq_model = None if not model or "gemini" in model else model
             try:
-                yield from self.gemini.stream_response(query, context, exam_type, chat_history, gemini_model, temperature, max_tokens, image_data)
-            except Exception:
-                yield "**Reconnaissance Failed:** The Intelligence Server (Gemini Vision API) rejected the image attachment due to a quota limit (Limit: 0) or region restriction on your account. Please verify your Google AI Studio billing/quota limits. In the meantime, please send text-only prompts!"
-            return
-            
+                yield from self.groq.stream_response(query, context, exam_type, chat_history, groq_model, temperature, max_tokens, image_data=image_data)
+                return
+            except Exception as e:
+                # Secondary fallback: Gemini if configured
+                if self.gemini:
+                    try:
+                        logger.warning(f"Groq native vision stream failed ({e}), falling back to Gemini...")
+                        yield from self.gemini.stream_response(query, context, exam_type, chat_history, "gemini-2.0-flash", temperature, max_tokens, image_data)
+                        return
+                    except Exception:
+                        pass
+                yield f"**Reconnaissance Failed:** Image analysis encountered an error: {str(e)}"
+                return
+
         groq_model = self.groq.default_model if not model or "gemini" in model else model
         yield from self.groq.stream_response(query, context, exam_type, chat_history, groq_model, temperature, max_tokens)
 
@@ -463,7 +627,27 @@ def _create_client():
     try:
         return SmartRouterClient()
     except Exception as e:
-        print(f"SmartRouterClient initialization delayed: {e}")
+        logger.warning(f"SmartRouterClient initialization delayed: {e}")
         return None
 
-groq_client = _create_client()
+_client_instance = _create_client()
+
+def get_groq_client():
+    global _client_instance
+    if _client_instance is None:
+        load_dotenv(override=True)
+        _client_instance = _create_client()
+    if _client_instance is None:
+        raise ValueError(
+            "GROQ_API_KEY not found! Set it in your .env file.\n"
+            "Get your free key at: https://console.groq.com/keys"
+        )
+    return _client_instance
+
+class _GroqClientProxy:
+    """Dynamic proxy that resolves SmartRouterClient on-demand, allowing hot-reloading of .env."""
+    def __getattr__(self, name):
+        client = get_groq_client()
+        return getattr(client, name)
+
+groq_client = _GroqClientProxy()

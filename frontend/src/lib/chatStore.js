@@ -17,7 +17,8 @@ export async function getChats() {
       return getChatsLocal()
     }
     if (!res.ok) throw new Error('Failed to fetch chats')
-    return await res.json()
+    const serverChats = await res.json()
+    return Array.isArray(serverChats) && serverChats.length > 0 ? serverChats : getChatsLocal()
   } catch {
     return getChatsLocal()
   }
@@ -43,14 +44,13 @@ export async function saveChat(chat) {
     })
 
     if (res.status === 401) {
-      saveChatLocal(safeChat)
-      return
+      return saveChatLocal(safeChat)
     }
 
     if (!res.ok) throw new Error('Failed to save chat')
     return await res.json()
   } catch {
-    saveChatLocal(chat)
+    return saveChatLocal(chat)
   }
 }
 
@@ -116,6 +116,7 @@ function saveChatLocal(chat) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(chats.slice(0, 10)))
     }
   }
+  return safeChat
 }
 
 function deleteChatLocal(id) {

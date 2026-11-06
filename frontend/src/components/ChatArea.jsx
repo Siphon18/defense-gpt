@@ -1,10 +1,9 @@
 'use client'
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Square, ArrowDown, Sparkles, Mic, Paperclip, X, Image as ImageIcon, Lock, Settings2 } from 'lucide-react'
+import { Send, Square, ArrowDown, Sparkles, Mic, Paperclip, X, Image as ImageIcon, Lock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import MessageBubble from './MessageBubble'
-import SettingsPanel from './SettingsPanel'
-import { askStream, fetchModels } from '@/lib/api'
+import { askStream } from '@/lib/api'
 
 export default function ChatArea({
   messages, setMessages, settings, isLoading, setIsLoading,
@@ -13,7 +12,6 @@ export default function ChatArea({
   const [input, setInput] = useState('')
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   const [suggestions, setSuggestions] = useState([])
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const scrollRef = useRef(null)
   const textareaRef = useRef(null)
   const abortRef = useRef(null)
@@ -36,12 +34,9 @@ export default function ChatArea({
 
   const loadingStages = [
     'Searching knowledge base...',
-    'Retrieving context...',
-    'Fetching web signals...',
+    'Analyzing context...',
     'Generating response...',
-    'Finalizing...',
   ]
-  const modeOrder = ['hybrid', 'pdf_only', 'web_only']
 
   const pushToast = useCallback((message, type = 'info') => {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2)
@@ -114,8 +109,9 @@ export default function ChatArea({
         setLocked(true)
         return false
       }
-      return false
-    } catch { return false }
+      // If DB is offline / error, allow gracefully
+      return true
+    } catch { return true }
   }
 
   const toggleListening = () => {
@@ -226,9 +222,16 @@ export default function ChatArea({
       .map(m => ({ role: m.role, content: m.content }))
 
     const controller = askStream(
-      query, settings.examType, settings.model, settings.temperature,
-      settings.topK, settings.sourceFilter, settings.useLiveWebSearch,
-      settings.contextMode, chatHistory, activeImage,
+      query,
+      settings?.examType || 'General',
+      'auto',
+      null,
+      5,
+      null,
+      true,
+      'auto',
+      chatHistory,
+      activeImage,
       {
         onToken: (token) => { tokenQueueRef.current.push(token); startDraining() },
         onAgentStep: (step) => setAgentStep(step),
@@ -301,12 +304,6 @@ export default function ChatArea({
     >
       <div className="max-w-3xl mx-auto w-full relative">
 
-        <SettingsPanel
-  open={settingsOpen}
-  onClose={() => setSettingsOpen(false)}
-  settings={settings}
-  availableModels={settings.availableModels}
-/>
         {/* Image preview */}
         <AnimatePresence>
           {image && (
@@ -368,16 +365,7 @@ export default function ChatArea({
           />
 
           {/* Right icons */}
-          <div className="flex items-center gap-1 shrink-0 pb-0.5">
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setSettingsOpen(v => !v)}
-              className={`p-1.5 rounded-md transition-colors ${settingsOpen ? 'text-[#22c55e] bg-[#22c55e]/10' : 'text-[#4b5563] hover:text-[#6b7280] hover:bg-white/[0.04]'}`}
-              title="Settings"
-            >
-              <Settings2 size={15} />
-            </motion.button>
-
+          <div className="flex items-center gap-1.5 shrink-0 pb-0.5">
             <AnimatePresence mode="wait">
               {isLoading ? (
                 <motion.button

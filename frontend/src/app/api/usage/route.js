@@ -170,6 +170,7 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('/api/usage POST error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    // In offline/unconnected DB mode, gracefully allow query
+    return NextResponse.json({ authenticated: false, usage: 1, limit: FREE_LIMIT, isPro: false })
   }
 }

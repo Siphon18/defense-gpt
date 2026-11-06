@@ -20,32 +20,35 @@ Defense GPT has been upgraded to a full production-ready cloud architecture:
 - **Vector Database**: Migrated from local ChromaDB to **MongoDB Atlas Vector Search** for scalable, cloud-hosted embeddings.
 
 ## Tech Stack
-- **LLM**: Groq (Llama 3) or Google Gemini (configurable)
+- **LLM & Multimodal Vision**: Groq (`openai/gpt-oss-20b`, `meta-llama/llama-4-scout-17b-16e-instruct`, `qwen/qwen3.8-27b`)
 - **RAG Datastore**: MongoDB Atlas Vector Search
 - **Embeddings**: `all-MiniLM-L6-v2` via PyTorch (`sentence-transformers`)
-- **Backend**: FastAPI + Uvicorn
-- **Frontend**: Next.js 14 + NextAuth + Tailwind CSS
+- **Web Intelligence**: Scrapling (stealth search & adaptive scraping with zero third-party API keys)
+- **Backend**: FastAPI + Uvicorn (Dockerized for Hugging Face Spaces)
+- **Frontend**: Next.js 14 + NextAuth + Tailwind CSS (Deployed on Vercel)
 
 ## Deployment Guide
 
 ### 1. Backend Integration (Hugging Face Spaces)
-The backend requires a machine with sufficient RAM to dynamically load ML models. 
+The backend runs in a Docker container on Hugging Face Spaces with sufficient RAM for PyTorch embeddings:
 1. Create a **Docker Space** on Hugging Face.
 2. Link this GitHub repository.
-3. Add the following to your Space **Secrets**:
-   - `MONGODB_URI`
-   - `LLM_PROVIDER` (set `groq` for Groq-only mode)
-   - `GROQ_API_KEY`
-   - `GROQ_MODEL`
-   - `FIRECRAWL_API_KEY` (for web search augmentation)
-   - `GEMINI_API_KEY` and `GEMINI_MODEL` (optional, only needed for image prompts)
+3. Configure the following in your Space **Settings › Variables and Secrets**:
+   - `MONGODB_URI`: Full MongoDB Atlas connection string (`mongodb+srv://...`)
+   - `LLM_PROVIDER`: `groq`
+   - `GROQ_API_KEY`: Your Groq API key (handles both text generation and multimodal vision)
+   - `GROQ_MODEL`: Default text model (e.g. `openai/gpt-oss-20b`)
+   - `GROQ_VISION_MODEL`: Default multimodal vision model (`meta-llama/llama-4-scout-17b-16e-instruct`)
+   - `CORS_ORIGINS`: `*` or your Vercel deployment URL (e.g. `https://your-defensegpt.vercel.app`)
+   - `GEMINI_API_KEY` *(optional)*: Secondary fallback for multimodal queries if desired
 
 ### 2. Frontend Integration (Vercel)
-Deploy the `frontend` directory using Vercel. 
+Deploy the `frontend` directory on Vercel. 
 Configure the following Environment Variables in Vercel:
-- `NEXT_PUBLIC_API_URL`: Your Hugging Face Space URL (e.g. `https://username-defense-gpt-api.hf.space`)
-- `MONGODB_URI`: Full MongoDB Connection String
-- `NEXTAUTH_SECRET`: Random 32-char string
+- `NEXT_PUBLIC_API_URL`: Your Hugging Face Space URL (e.g. `https://username-defensegpt.hf.space`)
+- `MONGODB_URI`: Full MongoDB Atlas Connection String
+- `NEXTAUTH_URL`: Your Vercel production domain (e.g. `https://your-defensegpt.vercel.app`)
+- `NEXTAUTH_SECRET`: Random 32-char string (`openssl rand -base64 32`)
 - `GOOGLE_CLIENT_ID` & `GOOGLE_CLIENT_SECRET`: For Google OAuth Login
 
 *(Note: Don't forget to whitelist your new Vercel domain in your Google Cloud Console OAuth Authorized Redirect URIs).*

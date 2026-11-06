@@ -3,7 +3,7 @@ Agentic Search Module for Defense GPT
 Implements Adaptive RAG with Tool-Calling & Reasoning Loop.
 Tools:
   1. pdf_rag_search: Vector Search over syllabus PDFs in MongoDB Atlas
-  2. web_search: Real-time search over official Indian defense & news domains (Triggered ONLY when needed)
+  2. web_search: Real-time search using Scrapeling (no domain restrictions)
 """
 
 import json
@@ -13,8 +13,7 @@ from typing import AsyncGenerator, Dict, Any, List
 from dotenv import load_dotenv
 
 from backend.rag_engine import rag_engine
-from backend.firecrawl_search import firecrawl_search
-from backend.web_search import google_search
+from backend.scrapeling_scraper import web_search as scrapeling_web_search
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -50,16 +49,10 @@ def execute_pdf_search(query: str, exam_type: str = "General", top_k: int = 5) -
 
 
 def execute_web_search(query: str) -> Dict[str, Any]:
-    """Execute Live Web Search tool using Firecrawl / Google / DuckDuckGo fallback."""
+    """Execute Live Web Search tool using Scrapeling with no domain restrictions."""
     try:
-        items = firecrawl_search(query, limit=4)
-        engine_used = "firecrawl/duckduckgo"
-
-        if not items:
-            g_items = google_search(query, num_results=4)
-            if g_items:
-                items = g_items
-                engine_used = "google-custom-search"
+        items = scrapeling_web_search(query, limit=5)
+        engine_used = "scrapeling/duckduckgo"
 
         if not items:
             return {
@@ -71,9 +64,10 @@ def execute_web_search(query: str) -> Dict[str, Any]:
         lines = []
         sources = []
         for idx, item in enumerate(items, 1):
-            title = item.get("title") or item.get("source") or "Web Intel"
+            title = item.get("title") or "Web Intel"
             snippet = item.get("snippet") or item.get("content") or ""
             link = item.get("link") or ""
+            trust = item.get("trust", "medium")
             lines.append(f"[{idx}] {title}\nSnippet: {snippet}\nURL: {link}")
 
             sources.append({
@@ -81,7 +75,7 @@ def execute_web_search(query: str) -> Dict[str, Any]:
                 "title": title,
                 "preview": snippet[:200],
                 "link": link,
-                "trust": "high" if any(dom in link for dom in ["gov.in", "nic.in", "reuters.com", "pib.gov.in"]) else "medium",
+                "trust": trust,
             })
 
         formatted_web_context = f"## Live Web Intelligence ({engine_used}):\n" + "\n\n".join(lines)
@@ -103,8 +97,8 @@ class AgenticSearchRunner:
         self,
         query: str,
         exam_type: str = "General",
-        model: str = "llama-3.3-70b-versatile",
-        temperature: float = 0.3,
+        model: str = "auto",
+        temperature: float = None,
         top_k: int = 5,
         use_live_web_search: bool = True,
         context_mode: str = "hybrid",
@@ -114,18 +108,19 @@ class AgenticSearchRunner:
         Runs agent reasoning loop:
           Step 1: Execute Vector DB search first.
           Step 2: Evaluate vector results. Web Search runs ONLY if vector results are insufficient or query has real-time current affairs intent.
-          Step 3: Stream final synthesized briefing tokens.
+          Step 3: Auto-route model & synthesize final briefing tokens.
+          Step 4: Yield follow-up suggestions and done signal.
         """
         all_sources = []
         combined_context = []
         chunks = []
 
         # Yield initial thinking step
-        yield f"data: {json.dumps({'type': 'agent_step', 'step': 'Analyzing query & evaluating Vector Knowledge Base...'})}\n\n"
+        yield f"data: {json.dumps({'type': 'agent_step', 'step': 'Analyzing query intent & knowledge base...'})}\n\n"
 
         # ── Step 1: Execute PDF Vector DB Search Tool ────────────────────
-        if context_mode in ["hybrid", "pdf_only"]:
-            yield f"data: {json.dumps({'type': 'agent_step', 'step': f'Searching {exam_type} syllabus vector database...'})}\n\n"
+        if context_mode in ["auto", "hybrid", "pdf_only"]:
+            yield f"data: {json.dumps({'type': 'agent_step', 'step': f'Searching {exam_type} syllabus knowledge base...'})}\n\n"
             pdf_res = execute_pdf_search(query, exam_type=exam_type, top_k=top_k)
 
             if pdf_res["success"] and pdf_res["context"]:
@@ -143,7 +138,7 @@ class AgenticSearchRunner:
         )
 
         if web_needed:
-            yield f"data: {json.dumps({'type': 'agent_step', 'step': 'Searching live web for real-time updates...'})}\n\n"
+            yield f"data: {json.dumps({'type': 'agent_step', 'step': 'Searching live web for verified updates...'})}\n\n"
             web_res = execute_web_search(query)
 
             if web_res["success"] and web_res["context"]:
@@ -156,12 +151,13 @@ class AgenticSearchRunner:
         if all_sources:
             yield f"data: {json.dumps({'type': 'sources', 'sources': all_sources})}\n\n"
 
-        # ── Step 3: Synthesize Final Briefing with LLM ───────────────────
-        yield f"data: {json.dumps({'type': 'agent_step', 'step': 'Synthesizing final intelligence briefing...'})}\n\n"
+        # ── Step 3: Synthesize Final Briefing with Auto-Routed LLM ───────
+        yield f"data: {json.dumps({'type': 'agent_step', 'step': 'Synthesizing response...'})}\n\n"
 
         full_context_str = "\n\n---\n\n".join(combined_context)
 
         client = _get_groq_client()
+        full_answer = ""
         for token in client.stream_response(
             query=query,
             context=full_context_str,
@@ -170,7 +166,18 @@ class AgenticSearchRunner:
             model=model,
             temperature=temperature,
         ):
+            full_answer += token
             yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+
+        # ── Step 4: Follow-up Suggestions & Completion Signal ────────────
+        try:
+            suggestions = client.generate_suggestions(query, full_answer, exam_type)
+            if suggestions:
+                yield f"data: {json.dumps({'type': 'suggestions', 'suggestions': suggestions})}\n\n"
+        except Exception as e:
+            logger.debug(f"Failed to generate suggestions: {e}")
+
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
 
 agentic_runner = AgenticSearchRunner()

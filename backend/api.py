@@ -9,7 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator, Field
 from pathlib import Path
-import shutil
 import json
 import asyncio
 import os
@@ -22,8 +21,7 @@ logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
 
 from backend.rag_engine import rag_engine
 from backend.groq_client import groq_client
-from backend.firecrawl_search import firecrawl_search
-from backend.firecrawl_search import _allowed_domains
+from backend.scrapeling_scraper import web_search as scrapeling_web_search
 
 WEB_KEYWORDS = [
     'news', 'latest', 'current', 'today', 'event', 'update', 'breaking', 'headline', 'happening', 'recent', 'trending', 'report', 'web', 'internet', 'online'
@@ -132,13 +130,14 @@ def should_use_web_search(query: str, use_live_web_search: bool, chunks: list, c
 
 def _human_web_reason(reason: str) -> str:
     mapping = {
-        "missing_firecrawl_api_key": "web search is not configured on the server",
         "no_search_results": "no recent web matches were returned",
-        "filtered_by_allowed_domains": "results were outside approved study domains",
         "scrape_failed": "web pages could not be scraped at this time",
         "search_error": "web provider request failed",
         "no_usable_results": "no usable verified snippets were extracted",
-        "missing_allowed_domains": "no approved domains are configured",
+        "disabled-by-user": "web search is disabled",
+        "disabled-by-context-mode": "web search disabled for PDF-only mode",
+        "requires-time-intent-and-entity": "query does not require real-time web data",
+        "high-confidence-rag-static-query": "sufficient information in knowledge base",
     }
     return mapping.get(reason, reason or "unknown")
 
@@ -209,11 +208,11 @@ class QueryRequest(BaseModel):
     top_k: int = 5
     source_filter: str | None = None
     chat_history: list[dict] = Field(default_factory=list)
-    model: str | None = None
-    temperature: float = 0.3
+    model: str | None = "auto"
+    temperature: float | None = None
     image_data: str | None = None
     use_live_web_search: bool = True
-    context_mode: str = "hybrid"  # hybrid | pdf_only | web_only
+    context_mode: str = "auto"  # auto | hybrid | pdf_only | web_only
 
     @field_validator("top_k")
     @classmethod
@@ -223,14 +222,16 @@ class QueryRequest(BaseModel):
     @field_validator("temperature")
     @classmethod
     def clamp_temperature(cls, v):
+        if v is None:
+            return None
         return max(0.0, min(v, 1.0))
 
     @field_validator("context_mode")
     @classmethod
     def validate_context_mode(cls, v):
-        allowed = {"hybrid", "pdf_only", "web_only"}
+        allowed = {"auto", "hybrid", "pdf_only", "web_only"}
         if v not in allowed:
-            return "hybrid"
+            return "auto"
         return v
 
 
@@ -309,8 +310,14 @@ def ask_question(request: QueryRequest):
         logging.debug(f"Web fetch decision: attempted={web_attempted}, reason={web_reason}")
         if web_attempted:
             logging.debug("Web fetch triggered.")
-            web_results, web_meta = firecrawl_search(request.query, return_meta=True)
-            logging.debug(f"Web results: {web_results}")
+            try:
+                web_results = scrapeling_web_search(request.query, limit=4)
+                web_meta = {"status": "ok", "reason": "fetched", "candidates": len(web_results)}
+            except Exception as e:
+                logging.warning(f"Web search failed: {e}")
+                web_results = []
+                web_meta = {"status": "error", "reason": str(e)}
+            logging.debug(f"Web results: {len(web_results)}")
         # Step 2: Generate response via Groq, blending web results if present
         web_summary = build_web_summary(web_results, attempted=web_attempted, web_meta=web_meta)
         answer = groq_client.generate_response(
@@ -318,7 +325,7 @@ def ask_question(request: QueryRequest):
             context=context + web_summary,
             exam_type=request.exam_type,
             chat_history=request.chat_history,
-            model=request.model,
+            model=request.model or "auto",
             temperature=request.temperature,
             image_data=request.image_data,
         )
@@ -346,7 +353,7 @@ def ask_question(request: QueryRequest):
         return QueryResponse(
             answer=answer,
             sources=sources,
-            model_used=request.model or groq_client.default_model
+            model_used=request.model or "auto (smart-routed)"
         )
     except Exception as e:
         logging.error(f"ask_question error: {e}", exc_info=True)
@@ -487,30 +494,45 @@ def get_models():
             "label": "GPT-OSS 20B",
             "badge": "Fast",
         },
+        "meta-llama/llama-4-scout-17b-16e-instruct": {
+            "label": "Llama 4 Scout (Vision)",
+            "badge": "Multimodal",
+        },
+        "qwen/qwen3.8-27b": {
+            "label": "Qwen 3.8 27B (Vision)",
+            "badge": "Multimodal",
+        },
         "qwen/qwen3.6-27b": {
             "label": "Qwen 3.6 27B",
             "badge": "Fast",
         },
     }
 
+    try:
+        available_ids = groq_client.get_available_models()
+        default_model = groq_client.default_model
+    except Exception:
+        available_ids = list(model_info.keys())
+        default_model = "openai/gpt-oss-20b"
+
     models = []
 
-    for model_id in groq_client.get_available_models():
+    for model_id in available_ids:
         info = model_info.get(model_id, {})
         models.append({
             "id": model_id,
             "label": info.get("label", model_id),
             "badge": (
                 "Default"
-                if model_id == groq_client.default_model
+                if model_id == default_model
                 else info.get("badge")
             ),
         })
 
     return {
         "models": models,
-        "default": groq_client.default_model,
-}
+        "default": default_model,
+    }
     
 @router.get("/pdfs")
 def list_pdfs():
@@ -538,15 +560,21 @@ async def ask_stream(request: QueryRequest):
         from backend.agentic_search import agentic_runner
         return StreamingResponse(
             agentic_runner.run_agentic_stream(
-               query=request.query,
-               exam_type=request.exam_type,
-               model=request.model or groq_client.default_model,
-    temperature=request.temperature or 0.3,
-    top_k=request.top_k or 5,
-    use_live_web_search=request.use_live_web_search,
-    context_mode=request.context_mode or "hybrid",
-    chat_history=request.chat_history,
-)
+                query=request.query,
+                exam_type=request.exam_type,
+                model=request.model or "auto",
+                temperature=request.temperature,
+                top_k=request.top_k or 5,
+                use_live_web_search=request.use_live_web_search,
+                context_mode=request.context_mode or "hybrid",
+                chat_history=request.chat_history,
+            ),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
         )
 
     context = ""
@@ -574,11 +602,12 @@ async def ask_stream(request: QueryRequest):
     logging.debug(f"Web fetch decision (/ask/stream): attempted={web_attempted}, reason={web_reason}")
     try:
         if web_attempted:
-            web_results, web_meta = await asyncio.to_thread(
-                firecrawl_search, request.query, 3, True
-            )
+            web_results = scrapeling_web_search(request.query, limit=3)
+            web_meta = {"status": "ok", "reason": "fetched", "candidates": len(web_results)}
     except Exception as e:
         logging.warning("Web search failed in /ask/stream: %s", e)
+        web_results = []
+        web_meta = {"status": "error", "reason": str(e)}
 
     context = (context or "") + build_web_summary(
         web_results, attempted=web_attempted, web_meta=web_meta
@@ -658,43 +687,53 @@ async def ask_stream(request: QueryRequest):
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/web/sources")
 def web_sources():
-    """Expose approved defense-study web domains used for web context retrieval."""
-    domains = _allowed_domains()
-    rows = []
-    for d in domains:
-        trust = "high" if d.endswith(("gov.in", "nic.in", "cdac.in")) else "medium"
-        rows.append({"domain": d, "trust": trust})
-    return {"domains": rows, "count": len(rows)}
+    """Expose trusted defense-study web domains for reference."""
+    # No domain restrictions - web search is open to all sources
+    # Trust is assigned dynamically based on TLD (gov.in, .edu, etc.)
+    return {
+        "message": "Web search has no domain restrictions. Trust labels are assigned dynamically.",
+        "high_trust_tlds": [".gov.in", ".nic.in", ".cdac.in", ".gov", ".edu", ".ac.in"],
+        "high_trust_domains": ["wikipedia.org", "reuters.com", "apnews.com", "bbc.com", "aljazeera.com"],
+    }
 
 
 @router.get("/web/debug")
 def web_debug(query: str, limit: int = 3):
     """
     Debug helper to inspect web retrieval behavior.
-    Returns retriever selection, reasons, and top normalized results.
+    Returns search results and metadata from the Scrapeling scraper.
     """
     capped_limit = max(1, min(limit, 8))
-    domains = _allowed_domains()
 
-    final_results, primary_meta = firecrawl_search(
-        query=query, limit=capped_limit, return_meta=True
-    )
-    used = "duckduckgo_scrape_crawl"
+    try:
+        results = scrapeling_web_search(query, limit=capped_limit)
+        meta = {
+            "engine": "scrapeling/duckduckgo",
+            "has_results": len(results) > 0,
+        }
+    except Exception as e:
+        results = []
+        meta = {"engine": "scrapeling", "error": str(e)}
 
     return {
         "query": query,
         "limit": capped_limit,
-        "used_retriever": used,
-        "result_count": len(final_results),
-        "primary_meta": primary_meta,
-        "fallback_meta": None,
-        "allowed_domains_count": len(domains),
-        "results": final_results,
+        "result_count": len(results),
+        "meta": meta,
+        "results": results,
     }
 
 

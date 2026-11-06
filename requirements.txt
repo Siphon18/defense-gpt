@@ -22,5 +22,4 @@ pydantic
 httpx
 requests
 langchain-text-splitters
-firecrawl-py
-beautifulsoup4
+scrapling[fetchers]

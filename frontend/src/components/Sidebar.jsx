@@ -47,7 +47,7 @@ function MagneticButton({ children, className, onClick, disabled }) {
 
 export default function Sidebar({
   open, onToggle, chats = [], activeChatId, onSelectChat, onNewChat, onDeleteChat,
-  examType, setExamType, session, onSignOut, saveStatus = 'idle',
+  examType, setExamType, session, onSignOut, saveStatus = 'idle', showToggle = true,
 }) {
   const [isMobile, setIsMobile] = useState(false)
   const [hoverDelete, setHoverDelete] = useState(null)
@@ -268,7 +268,7 @@ export default function Sidebar({
 
       {/* Mobile toggle button */}
       <AnimatePresence>
-        {!open && (
+        {!open && showToggle && (
           <motion.button
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}

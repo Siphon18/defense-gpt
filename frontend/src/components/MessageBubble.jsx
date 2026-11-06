@@ -1,7 +1,10 @@
 'use client'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Copy, Check, ChevronDown, FileText, Globe, Pin, RotateCcw, ListCollapse, ClipboardList } from 'lucide-react'
+import {
+  Copy, Check, ChevronDown, FileText, Globe, Pin,
+  RotateCcw, ListCollapse, ClipboardList, ShieldCheck
+} from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -14,20 +17,44 @@ function SourcesPanel({ sources }) {
   const normalized = []
   sources.forEach((s, si) => {
     if (s.source === 'web') {
-      try {
-        const items = JSON.parse(s.preview || '[]')
-        items.forEach((it, ii) => normalized.push({
-          id: `web-${si}-${ii}`, title: it.title || 'Web source', text: it.snippet || it.content || '',
-          link: it.link || '', trust: it.trust || 'medium', type: 'web',
-        }))
-      } catch {
-        normalized.push({ id: `web-${si}`, title: 'Web source', text: s.preview || '', link: '', trust: 'medium', type: 'web' })
+      if (s.title && s.link) {
+        normalized.push({
+          id: `web-${si}`,
+          title: s.title,
+          text: s.preview || s.text || '',
+          link: s.link,
+          trust: s.trust || 'medium',
+          type: 'web',
+        })
+      } else {
+        try {
+          const items = JSON.parse(s.preview || '[]')
+          items.forEach((it, ii) => normalized.push({
+            id: `web-${si}-${ii}`,
+            title: it.title || 'Web source',
+            text: it.snippet || it.content || '',
+            link: it.link || '',
+            trust: it.trust || 'medium',
+            type: 'web',
+          }))
+        } catch {
+          normalized.push({
+            id: `web-${si}`,
+            title: s.title || 'Web source',
+            text: s.preview || '',
+            link: s.link || '',
+            trust: s.trust || 'medium',
+            type: 'web',
+          })
+        }
       }
     } else {
       normalized.push({
         id: `doc-${si}`,
         title: `${s.source}${s.page ? ` · p.${s.page}` : ''}`,
-        text: s.preview || s.text || '', link: '', type: 'doc',
+        text: s.preview || s.text || '',
+        link: '',
+        type: 'doc',
       })
     }
   })
@@ -63,10 +90,16 @@ function SourcesPanel({ sources }) {
                   <span className="text-[#f59e0b] font-medium flex items-center gap-1.5">
                     <Pin size={11} className="fill-current" /> {pinned.title}
                   </span>
-                  <button onClick={() => setPinnedId(null)} className="text-[10px] text-[#4b5563] hover:text-[#6b7280]">Unpin</button>
+                  <button onClick={() => setPinnedId(null)} className="text-[10px] text-[#4b5563] hover:text-[#6b7280]">
+                    Unpin
+                  </button>
                 </div>
                 {pinned.text && <p className="text-[#6b7280] leading-relaxed line-clamp-3">{pinned.text}</p>}
-                {pinned.link && <a href={pinned.link} target="_blank" rel="noopener noreferrer" className="text-[#22c55e] hover:underline mt-1 inline-block text-[10px]">Open source →</a>}
+                {pinned.link && (
+                  <a href={pinned.link} target="_blank" rel="noopener noreferrer" className="text-[#22c55e] hover:underline mt-1 inline-block text-[10px]">
+                    Open source →
+                  </a>
+                )}
               </div>
             )}
             {rest.map((item, i) => (
@@ -75,9 +108,7 @@ function SourcesPanel({ sources }) {
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
-                className={`bg-[#141518] border rounded-lg px-3 py-2.5 text-xs flex gap-2.5 ${
-                  item.type === 'web' ? 'border-white/[0.06]' : 'border-white/[0.06]'
-                }`}
+                className="bg-[#141518] border border-white/[0.06] rounded-lg px-3 py-2.5 text-xs flex gap-2.5"
               >
                 <div className="shrink-0 mt-0.5">
                   {item.type === 'web'
@@ -86,9 +117,20 @@ function SourcesPanel({ sources }) {
                   }
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-[#9ca3af] truncate">{item.title}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="font-medium text-[#9ca3af] truncate">{item.title}</p>
+                    {item.type === 'web' && item.trust === 'high' && (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-[#22c55e] bg-[#22c55e]/10 px-1.5 py-0.5 rounded font-geist-mono">
+                        <ShieldCheck size={10} /> Verified
+                      </span>
+                    )}
+                  </div>
                   {item.text && <p className="text-[#4b5563] mt-0.5 line-clamp-2 leading-relaxed">{item.text}</p>}
-                  {item.link && <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-[#22c55e]/70 hover:text-[#22c55e] hover:underline mt-0.5 inline-block text-[10px]">Open →</a>}
+                  {item.link && (
+                    <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-[#22c55e]/70 hover:text-[#22c55e] hover:underline mt-0.5 inline-block text-[10px]">
+                      Open →
+                    </a>
+                  )}
                 </div>
                 <button onClick={() => setPinnedId(item.id)} className="p-1 text-[#374151] hover:text-[#f59e0b] transition-colors shrink-0">
                   <Pin size={11} />
@@ -103,14 +145,24 @@ function SourcesPanel({ sources }) {
 }
 
 // ── Message Bubble ─────────────────────────────────────────────────
-export default function MessageBubble({ message, isStreaming, messageIndex, allMessages = [], onRegenerate, onSummarize, onCreateQuiz }) {
+export default function MessageBubble({
+  message,
+  isStreaming,
+  messageIndex,
+  allMessages = [],
+  onRegenerate,
+  onSummarize,
+  onCreateQuiz,
+}) {
   const [copied, setCopied] = useState(false)
-  const [actionsVisible, setActionsVisible] = useState(false)
   const isUser = message.role === 'user'
 
   let previousUserPrompt = ''
   for (let i = messageIndex - 1; i >= 0; i--) {
-    if (allMessages[i]?.role === 'user') { previousUserPrompt = allMessages[i].content || ''; break }
+    if (allMessages[i]?.role === 'user') {
+      previousUserPrompt = allMessages[i].content || ''
+      break
+    }
   }
 
   const handleCopy = () => {
@@ -140,13 +192,28 @@ export default function MessageBubble({ message, isStreaming, messageIndex, allM
         </div>
       ) : (
         /* ── Assistant message ── */
-        <div
-          className="bubble-assistant group"
-          onMouseEnter={() => setActionsVisible(true)}
-          onMouseLeave={() => setActionsVisible(false)}
-        >
-          <div className="prose-chat">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+        <div className="bubble-assistant group">
+          <div className="prose-chat overflow-hidden">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                table: ({ children }) => (
+                  <div className="overflow-x-auto my-3 rounded-lg border border-white/[0.08] max-w-full">
+                    <table className="w-full border-collapse text-xs sm:text-sm">{children}</table>
+                  </div>
+                ),
+                th: ({ children }) => (
+                  <th className="text-left font-semibold px-3 py-2 border-b border-white/[0.08] text-[#9ca3af] font-geist-mono text-[11px] uppercase tracking-wider bg-white/[0.02]">
+                    {children}
+                  </th>
+                ),
+                td: ({ children }) => (
+                  <td className="px-3 py-2 border-b border-white/[0.04] text-[#d1d5db]">
+                    {children}
+                  </td>
+                ),
+              }}
+            >
               {message.content || ''}
             </ReactMarkdown>
             {isStreaming && (
@@ -154,53 +221,49 @@ export default function MessageBubble({ message, isStreaming, messageIndex, allM
             )}
           </div>
 
-          {/* Hover actions */}
-          <AnimatePresence>
-            {message.content && actionsVisible && (
-              <motion.div
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }}
-                transition={{ duration: 0.15 }}
-                className="flex items-center gap-1 mt-3"
+          {/* Action buttons (always touch-accessible on mobile, hover-revealed on desktop) */}
+          {message.content && !isStreaming && (
+            <div className="flex flex-wrap items-center gap-1 mt-3 transition-opacity duration-150 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100">
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] text-[#4b5563] hover:text-[#9ca3af] hover:bg-white/[0.04] border border-white/[0.05] sm:border-transparent hover:border-white/[0.06] transition-all font-geist-mono"
               >
+                {copied ? <Check size={12} className="text-[#22c55e]" /> : <Copy size={12} />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+
+              {onRegenerate && previousUserPrompt && (
                 <button
-                  onClick={handleCopy}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] text-[#4b5563] hover:text-[#9ca3af] hover:bg-white/[0.04] border border-transparent hover:border-white/[0.06] transition-all font-geist-mono"
+                  type="button"
+                  onClick={() => onRegenerate(previousUserPrompt)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] text-[#4b5563] hover:text-[#9ca3af] hover:bg-white/[0.04] border border-white/[0.05] sm:border-transparent hover:border-white/[0.06] transition-all font-geist-mono"
                 >
-                  {copied ? <Check size={12} className="text-[#22c55e]" /> : <Copy size={12} />}
-                  {copied ? 'Copied' : 'Copy'}
+                  <RotateCcw size={12} /> Retry
                 </button>
+              )}
 
-                {onRegenerate && previousUserPrompt && (
-                  <button
-                    onClick={() => onRegenerate(previousUserPrompt)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] text-[#4b5563] hover:text-[#9ca3af] hover:bg-white/[0.04] border border-transparent hover:border-white/[0.06] transition-all font-geist-mono"
-                  >
-                    <RotateCcw size={12} /> Retry
-                  </button>
-                )}
+              {onSummarize && (
+                <button
+                  type="button"
+                  onClick={() => onSummarize(message.content)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] text-[#4b5563] hover:text-[#9ca3af] hover:bg-white/[0.04] border border-white/[0.05] sm:border-transparent hover:border-white/[0.06] transition-all font-geist-mono"
+                >
+                  <ListCollapse size={12} /> Summarize
+                </button>
+              )}
 
-                {onSummarize && (
-                  <button
-                    onClick={() => onSummarize(message.content)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] text-[#4b5563] hover:text-[#9ca3af] hover:bg-white/[0.04] border border-transparent hover:border-white/[0.06] transition-all font-geist-mono"
-                  >
-                    <ListCollapse size={12} /> Summarize
-                  </button>
-                )}
-
-                {onCreateQuiz && (
-                  <button
-                    onClick={() => onCreateQuiz(message.content)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] text-[#4b5563] hover:text-[#9ca3af] hover:bg-white/[0.04] border border-transparent hover:border-white/[0.06] transition-all font-geist-mono"
-                  >
-                    <ClipboardList size={12} /> Quiz
-                  </button>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
+              {onCreateQuiz && (
+                <button
+                  type="button"
+                  onClick={() => onCreateQuiz(message.content)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] text-[#4b5563] hover:text-[#9ca3af] hover:bg-white/[0.04] border border-white/[0.05] sm:border-transparent hover:border-white/[0.06] transition-all font-geist-mono"
+                >
+                  <ClipboardList size={12} /> Quiz
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Sources */}
           {message.sources && <SourcesPanel sources={message.sources} />}
